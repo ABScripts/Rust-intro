@@ -17,12 +17,11 @@ struct Args {
 
 const READ_BUFFER_SIZE: usize = 4096;
 
-/* Buffered approach
- * Seek to end of the file. Then start crawling backwards by the size of the read buffer
- * while looking for newline characters. On each iteration flush data to final buffer which
- * would contain tailed text.
- *
- * TODO: try approach without buffer just with seek byte by byte. Would it be slower or we would be fine?
+/* Buffered approach:
+ * 1. Seek to the end of the file.
+ * 2. Crawl backwards in chunks of `READ_BUFFER_SIZE` bytes.
+ * 3. In each chunk, search for newline characters (`\n`).
+ * 4. Accumulate the relevant text into a final buffer that will contain the last N lines.
  */
 fn get_last_n_lines(filename: &String, n: u64) -> String {
     let mut file = match File::open(filename) {
@@ -32,7 +31,6 @@ fn get_last_n_lines(filename: &String, n: u64) -> String {
 
     file.seek(SeekFrom::End(0)).unwrap();
 
-    // TODO: how does unwrap() works?
     let mut file_size = file.stream_position().unwrap();
     let mut tailed_lines = 0;
     let mut buf = [0; READ_BUFFER_SIZE];
@@ -70,7 +68,7 @@ fn get_last_n_lines(filename: &String, n: u64) -> String {
 
         // NOTE: Seems that we can also pass &text_slice here - no difference?
         if let Ok(str) = str::from_utf8(text_slice) {
-            // TODO: It doesn't seem to be efficient..
+            // TODO: It doesn't seem to be efficient...
             tailed_output = format!("{}{}", str, tailed_output);
         }
 
