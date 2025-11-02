@@ -6,6 +6,8 @@ use std::ops::{Deref, DerefMut};
 use crate::node;
 
 pub mod node_forward_iter;
+pub mod node_owner_iter;
+
 #[derive(Debug)]
 pub struct Node<T: Debug + Clone> {
     value: T,
@@ -44,6 +46,8 @@ impl<T: Debug + Clone> Node<T> {
     }
 
     /// iterates all nodes starting with this one and forward
+    /// Q: better rename this method to "iter" which seems to be Rust idiomatic name for returning iterator which iterates over value refs:
+    /// https://doc.rust-lang.org/std/iter/index.html#for-loops-and-intoiterator:~:text=iter()%2C%20which%20iterates%20over%20%26T.
     pub fn iter_forward(&self) -> node_forward_iter::NodeForwardIter<'_, T> {
         node_forward_iter::NodeForwardIter {
             current: Some(self),
@@ -122,5 +126,72 @@ impl<T: Clone + Display + Debug> Clone for Node<T> {
 
         // data will be moved from heap to stack
         *cloned_head_node
+    }
+}
+
+/* There are three common methods which can create iterators from a collection:
+ * iter(), which iterates over &T.
+ * iter_mut(), which iterates over &mut T.
+ * into_iter(), which iterates over T. - this method is specifically used to convert collection into iterator (by moving ownership)
+ * Q: why does it consume collection?
+ */
+impl<T: Clone + Debug> IntoIterator for Node<T> {
+    type Item = T;
+    type IntoIter = node_owner_iter::NodeOwnerIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        return node_owner_iter::NodeOwnerIter {
+            current: Some(self),
+        };
+        // self.iter_forward()
+    }
+}
+
+impl<T: Clone + Debug> FromIterator<T> for Node<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        // We can also accept a collection here - that is why "I" MUST implement IntoIterator
+        let mut iter_i_swear = iter.into_iter();
+
+        // TODO: is that the right behaviour to panic if Iter is empty??
+        let mut from_iter_list = Node::new(iter_i_swear.next().expect("Iter is empty"));
+        let mut insert_position = &mut *from_iter_list;
+        for value in iter_i_swear {
+            insert_position = insert_position.insert(value);
+        }
+
+        *from_iter_list
+    }
+}
+
+impl<T: Clone + Debug> Extend<T> for Node<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        // let mut collected_nodes = Node::from_iter(iter.into_iter());
+        // let Some(next_node) = self.next.take() else {
+        //     self.next = Some(Box::new(collected_nodes));
+        //     return;
+        // };
+
+        // Q: borrow chain?
+        // let mut cur_node = &mut collected_nodes;
+        // loop {
+        //     // let Some(last_node) = &mut cur_node.next else { // but this would yield compiler error, why??
+        //     // Ok, this is actually a different thing, we take reference to Option
+        //     // BUT: what is this "ref mut", as_deref_mut won't work on next...
+        //     let Some(ref mut last_node) = cur_node.next else {
+        //         break;
+        //     };
+        //     cur_node = &mut *last_node;
+        // }
+
+        // cur_node.next = Some(next_node);
+        // self.next = Some(Box::new(collected_nodes));
+
+        let mut cur_node = self;
+        while let Some(ref mut last_node) = cur_node.next {
+            cur_node = &mut *last_node;
+        }
+
+        // Q: What actually happens here when Box::new receives Node from "from_iter" method??
+        cur_node.next = Some(Box::new(Node::from_iter(iter.into_iter())));
     }
 }

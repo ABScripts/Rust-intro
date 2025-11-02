@@ -95,6 +95,47 @@ mod linked_list_tests {
         // let last = node.iter_forward().last().unwrap();
         // assert_eq!(last.iter_bacwards().collect(), [4, 3, 2, 1]);
     }
+
+    #[test]
+    fn test_6_from_iter() {
+        let node = Node::from_iter([1, 2, 3, 4]);
+        assert_eq!(Vec::from_iter(node.into_iter()), [1, 2, 3, 4]);
+
+        let node = Node::from_iter(vec![1, 2, 3, 4]);
+        assert_eq!(Vec::from_iter(node.into_iter()), [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_7_extend() {
+        let mut node = Node::new(1);
+        node.extend([2, 3]);
+        node.extend(vec![4, 5]);
+        assert_eq!(Vec::from_iter(node.into_iter()), [1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_8_filter_fn() {
+        // let mut node = Node::from_iter([1, 2, 3, 4]);
+        // let node = node.remove_if(|e| e % 2 == 0); // what happens to mem allocated to previous node as we shadow it here?
+        // maybe nothing as it still can be referenced??
+        //     .unwrap();
+        // assert_eq!(Vec::from_iter(node.into_iter()), [1, 3]);
+    }
+
+    #[test]
+    fn test_9_filter_fn_with_capture() {
+        // let removed_value = "1".to_string();
+        // let node = Node::from_iter(["1", "2"]);
+        // let node = node.remove_if(|e| *e == removed_value).unwrap();
+        // assert_eq!(Vec::from_iter(node.into_iter()), ["2"]);
+    }
+
+    #[test]
+    fn test_10_filter_all() {
+        // let node = Node::from_iter([1, 2, 3, 4]);
+        // let node = node.remove_if(|_| true);
+        // assert!(node.is_none());
+    }
 }
 
 fn main() {}
