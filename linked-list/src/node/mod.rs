@@ -12,7 +12,6 @@ pub mod node_owner_iter;
 pub struct Node<T: Debug + Clone> {
     value: T,
     next: Option<Box<Node<T>>>,
-    // do I need to do something about this "next" here?
 }
 
 impl<T: Debug + Clone> Node<T> {
@@ -52,6 +51,30 @@ impl<T: Debug + Clone> Node<T> {
         node_forward_iter::NodeForwardIter {
             current: Some(self),
         }
+    }
+
+    pub fn remove_if<F>(self, mut closure: F) -> Option<Self>
+    where
+        F: Fn(&T) -> bool, // changed from "FnMut" -> "Fn"; seems to be saficient here
+    {
+        let mut is_head = false;
+        let mut head: Option<Self> = None;
+        let mut prev_node: Option<&mut Self> = None;
+        for value in self.into_iter() {
+            if !closure(&value) {
+                if is_head {
+                    prev_node.as_mut().unwrap().next = Some(Box::new(Node { value, next: None }));
+                    prev_node = prev_node.unwrap().next.as_deref_mut();
+                } else {
+                    head = Some(Node { value, next: None });
+                    prev_node = head.as_mut();
+                    is_head = true; // looks like a nasty workaround, but that is what I have got
+                    // However, as "prev_node" borrows head, I can't check if it is already filled in (as it requires one more borrowing..)
+                }
+            }
+        }
+
+        head
     }
 }
 

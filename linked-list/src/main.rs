@@ -115,26 +115,25 @@ mod linked_list_tests {
 
     #[test]
     fn test_8_filter_fn() {
-        // let mut node = Node::from_iter([1, 2, 3, 4]);
-        // let node = node.remove_if(|e| e % 2 == 0); // what happens to mem allocated to previous node as we shadow it here?
-        // maybe nothing as it still can be referenced??
-        //     .unwrap();
-        // assert_eq!(Vec::from_iter(node.into_iter()), [1, 3]);
+        let node = Node::from_iter([1, 2, 3, 4]);
+        // this "node" shadowing makes no harm here as previous value is moved into "remove_if" method
+        let node = node.remove_if(|e| e % 2 == 0).unwrap();
+        assert_eq!(Vec::from_iter(node.into_iter()), [1, 3]);
     }
 
     #[test]
     fn test_9_filter_fn_with_capture() {
-        // let removed_value = "1".to_string();
-        // let node = Node::from_iter(["1", "2"]);
-        // let node = node.remove_if(|e| *e == removed_value).unwrap();
-        // assert_eq!(Vec::from_iter(node.into_iter()), ["2"]);
+        let removed_value = "1".to_string();
+        let node = Node::from_iter(["1", "2"]);
+        let node = node.remove_if(|e| *e == removed_value).unwrap();
+        assert_eq!(Vec::from_iter(node.into_iter()), ["2"]);
     }
 
     #[test]
     fn test_10_filter_all() {
-        // let node = Node::from_iter([1, 2, 3, 4]);
-        // let node = node.remove_if(|_| true);
-        // assert!(node.is_none());
+        let node = Node::from_iter([1, 2, 3, 4]);
+        let node = node.remove_if(|_| true);
+        assert!(node.is_none());
     }
 }
 
