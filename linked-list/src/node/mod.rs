@@ -165,30 +165,48 @@ impl<T: Clone + Debug> FromIterator<T> for Node<T> {
 
 impl<T: Clone + Debug> Extend<T> for Node<T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        /* All commented code below fails test as  it tries to extend list
+         * from within while we should actually get to the end of it first
+         * and then extend it.
+         * However, it was pretty useful in terms of learning different Rust syntax and
+         * getting to know about Rust's NLL BC limitation. See below for more.
+         */
         // let mut collected_nodes = Node::from_iter(iter.into_iter());
         // let Some(next_node) = self.next.take() else {
         //     self.next = Some(Box::new(collected_nodes));
         //     return;
         // };
 
-        // Q: borrow chain?
         // let mut cur_node = &mut collected_nodes;
         // loop {
-        //     // let Some(last_node) = &mut cur_node.next else { // but this would yield compiler error, why??
-        //     // Ok, this is actually a different thing, we take reference to Option
-        //     // BUT: what is this "ref mut", as_deref_mut won't work on next...
+        //     // let Some(last_node) = &mut cur_node.next else {
+
+        //     // Above line would fail compilation.
+        //     // Though in both cases "last_node" has the same type "&mut Box<Node<T>>",
+        //     // in first case we actually do "ref-match" which is same as borrowing whole "cur_node"
+        //     // while in second case we do "match-ref" which means borrowing "cur_node.next" specifically.
+        //     // This way, in the first case we would end up with compilation error, stating that we can't assign
+        //     // to "cur_node" which was already borrowed.
+        //     // That is limitation of current NLL borrow checker (BC), see:
+        //     // https://github.com/rust-lang/rfcs/blob/master/text/2094-nll.md#problem-case-4-mutating-mut-references
         //     let Some(ref mut last_node) = cur_node.next else {
         //         break;
         //     };
+        //     // cur_node = last_node.deref_mut(); // <--- this line is identical to the below
         //     cur_node = &mut *last_node;
+        //     // Same as
+        //     // cur_node = last_node.deref()
+        //     // is identical to
+        //     // cur_node = *last_node;
         // }
 
         // cur_node.next = Some(next_node);
         // self.next = Some(Box::new(collected_nodes));
 
+        // >>>>>>> Right solution which gets to the end of the list and then extend it
         let mut cur_node = self;
         while let Some(ref mut last_node) = cur_node.next {
-            cur_node = &mut *last_node;
+            cur_node = last_node.deref_mut();
         }
 
         // Q: What actually happens here when Box::new receives Node from "from_iter" method??
