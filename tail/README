@@ -1,0 +1,4 @@
+# Task: Implement tail -n
+Write a Rust program that prints the last N lines of a file efficiently, even for very large files (>1GB).
+Work directly with bytes (treat lines ending with b'\n') and parse command-line arguments using clap crate.
+Optional: support UTF-8 lines.
