@@ -56,20 +56,20 @@ impl<T: Debug + Clone> Node<T> {
     where
         F: Fn(&T) -> bool, // changed from "FnMut" -> "Fn"; seems to be saficient here
     {
-        let mut is_head = false;
         let mut head: Option<Self> = None;
         let mut prev_node: Option<&mut Self> = None;
         for value in self.into_iter() {
             if !closure(&value) {
-                if is_head {
-                    prev_node.as_mut().unwrap().next = Some(Box::new(Node { value, next: None }));
-                    prev_node = prev_node.unwrap().next.as_deref_mut();
-                } else {
+                // get head for the new list
+                let Some(prev_node_unwrapped) = prev_node else {
                     head = Some(Node { value, next: None });
                     prev_node = head.as_mut();
-                    is_head = true; // looks like a nasty workaround, but that is what I have got
-                    // However, as "prev_node" borrows head, I can't check if it is already filled in (as it requires one more borrowing..)
-                }
+                    continue;
+                };
+
+                // insert nodes which satisfies the condition
+                prev_node_unwrapped.next = Some(Box::new(Node { value, next: None }));
+                prev_node = prev_node_unwrapped.next.as_deref_mut();
             }
         }
 
