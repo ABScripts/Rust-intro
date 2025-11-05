@@ -44,9 +44,8 @@ impl<T: Debug + Clone> Node<T> {
         return self.next.as_deref_mut().unwrap();
     }
 
-    /// iterates all nodes starting with this one and forward
-    /// Q: better rename this method to "iter" which seems to be Rust idiomatic name for returning iterator which iterates over value refs:
-    /// https://doc.rust-lang.org/std/iter/index.html#for-loops-and-intoiterator:~:text=iter()%2C%20which%20iterates%20over%20%26T.
+    // Keep it as "iter_forward" to match "iter_backward".
+    // If "iter_backward" didn't exist, it should be named "iter".
     pub fn iter_forward(&self) -> node_forward_iter::NodeForwardIter<'_, T> {
         node_forward_iter::NodeForwardIter {
             current: Some(self),
@@ -153,11 +152,9 @@ impl<T: Clone + Display + Debug> Clone for Node<T> {
 }
 
 /* There are three common methods which can create iterators from a collection:
- * iter(), which iterates over &T.
- * iter_mut(), which iterates over &mut T.
- * into_iter(), which iterates over T. - this method is specifically used to convert collection into iterator (by moving ownership)
- * Q: why does it consume collection?
- */
+ * iter()      - iterates over &T.
+ * iter_mut()  - iterates over &mut T.
+ * into_iter() - iterates over T. This method is specifically used to convert a collection into an iterator by moving its ownership. */
 impl<T: Clone + Debug> IntoIterator for Node<T> {
     type Item = T;
     type IntoIter = node_owner_iter::NodeOwnerIter<Self::Item>;
