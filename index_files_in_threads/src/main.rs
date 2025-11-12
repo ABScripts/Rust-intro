@@ -28,11 +28,14 @@ struct ThreadedFileIndexer {
 }
 
 impl ThreadedFileIndexer {
-    fn new(files_to_process: Vec<PathBuf>) -> ThreadedFileIndexer {
+    fn new(path: &PathBuf) -> io::Result<ThreadedFileIndexer> {
+        let mut files = Vec::new();
+        collect_files(path, &mut files)?;
+
         let threads_num = num_cpus::get() - 1; // account for the main thread which is already running
         eprintln!("Will spawn {} additional threads", threads_num);
 
-        let shared_job_queue = Arc::new(Mutex::new(files_to_process));
+        let shared_job_queue = Arc::new(Mutex::new(files));
         let (tx, rx) = mpsc::channel();
         // this tx will be dropped as we are done with initializing ThreadedFileIndexer object
 
@@ -71,14 +74,10 @@ impl ThreadedFileIndexer {
             }));
         }
 
-        return ThreadedFileIndexer {
+        return Ok(ThreadedFileIndexer {
             worker_threads: threads,
             rx,
-        };
-    }
-
-    fn get_rx(&self) -> &mpsc::Receiver<IndexResults> {
-        &self.rx
+        });
     }
 
     fn join_all(self) {
@@ -88,45 +87,45 @@ impl ThreadedFileIndexer {
                 .unwrap_or_else(|e| println!("Failed to join thread: {:?}", e));
         }
     }
+
+    fn collect_results(self) -> io::Result<BTreeMap<String, BTreeMap<String, Vec<usize>>>> {
+        let mut index: BTreeMap<String, BTreeMap<String, Vec<usize>>> = BTreeMap::new();
+        for result in self.rx.iter() {
+            let filename = result.filename;
+            let word_pos = result.index;
+            println!("Received {:?}", filename);
+
+            for (word, positions) in word_pos {
+                let entry = index.entry(word.to_string()).or_insert_with(BTreeMap::new);
+
+                let filepath = fs::canonicalize(filename.to_path_buf())?
+                    .to_string_lossy()
+                    .to_string();
+
+                entry
+                    .entry(filepath)
+                    .or_insert_with(Vec::new)
+                    .extend(positions);
+            }
+        }
+
+        self.join_all();
+
+        Ok(index)
+    }
 }
 
 fn main() -> io::Result<()> {
     let args = Args::parse();
-    let path = args.path;
 
     let start_time = Instant::now();
 
-    let mut files = Vec::new();
-    collect_files(&path, &mut files)?;
-
-    let threaded_file_indexer = ThreadedFileIndexer::new(files);
-
-    let mut index: BTreeMap<String, BTreeMap<String, Vec<usize>>> = BTreeMap::new();
-    let rx_end = threaded_file_indexer.get_rx();
-    for result in rx_end.iter() {
-        let filename = result.filename;
-        let word_pos = result.index;
-        println!("Received {:?}", filename);
-
-        for (word, positions) in word_pos {
-            let entry = index.entry(word.to_string()).or_insert_with(BTreeMap::new);
-
-            let filepath = fs::canonicalize(filename.to_path_buf())?
-                .to_string_lossy()
-                .to_string();
-
-            entry
-                .entry(filepath)
-                .or_insert_with(Vec::new)
-                .extend(positions);
-        }
-    }
+    let threaded_file_indexer = ThreadedFileIndexer::new(&args.path)?;
+    let index = threaded_file_indexer.collect_results()?;
 
     let duration = start_time.elapsed();
     println!("Indexing results: {:?}", index);
     println!("Done indexing files in {} seconds", duration.as_secs_f64());
-
-    threaded_file_indexer.join_all();
 
     Ok(())
 }
