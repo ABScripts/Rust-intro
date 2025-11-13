@@ -1,8 +1,11 @@
 use clap::Parser;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read};
+use std::ops::Add;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -148,38 +151,22 @@ fn index_file(path: &Path) -> io::Result<HashMap<String, Vec<usize>>> {
 fn get_word_positions(string_to_index: &str) -> HashMap<String, Vec<usize>> {
     let mut indexed_string = HashMap::<String, Vec<usize>>::new();
 
-    let mut is_tracking_word = false;
-    let mut word_start_index = 0;
-    // Note on critical issue while using string_to_index.chars().enumerate().
-    // "chars()" would iterate over the characters.
-    // "enumerate()" will return the number of characters seen so far, NOT their byte positions.
-    // Slicing a string requires byte! indices, because UTF-8 characters can span multiple bytes.
-    // F.e, a word with 3 characters each spanning 2 bytes must be subscripted as [0..6].
-    // Use of chars().enumerate() would result in [0..3], which is incorrect.
-    for (index, ch) in string_to_index.char_indices() {
-        let is_ch_punctuation = ch.is_ascii_punctuation() || ch.is_ascii_whitespace();
-
-        if is_tracking_word {
-            if is_ch_punctuation {
-                let found_word = &string_to_index[word_start_index..index];
-                indexed_string
-                    .entry(found_word.to_string())
-                    .or_default()
-                    .push(word_start_index);
-                is_tracking_word = false;
-            }
-        } else if !is_ch_punctuation {
-            is_tracking_word = true;
-            word_start_index = index;
+    let mut word_byte_index = 0;
+    for word in string_to_index.split(|c: char| c.is_ascii_punctuation() || c.is_ascii_whitespace())
+    {
+        if !word.is_empty() {
+            indexed_string
+                .entry(word.to_string())
+                .or_default()
+                .push(word_byte_index);
+            word_byte_index += word.len();
         }
-    }
 
-    if is_tracking_word {
-        let found_word = &string_to_index[word_start_index..];
-        indexed_string
-            .entry(found_word.to_string())
-            .or_default()
-            .push(word_start_index);
+        // account for the delimeter just past the current word
+        // OR
+        // we get empty strings for each two adjacent delimeters
+        // increase for the second adjacent delimeter
+        word_byte_index += 1;
     }
 
     indexed_string
