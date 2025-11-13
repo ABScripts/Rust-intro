@@ -1,11 +1,8 @@
 use clap::Parser;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read};
-use std::ops::Add;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -27,7 +24,6 @@ struct ThreadedFileIndexer {
     worker_threads: Vec<JoinHandle<()>>,
     rx: Receiver<IndexResults>, // this Receiver will be used by user of the threaded file indexer
                                 // to retrieve results of processing
-                                // tx: Sender<HashMap<String, Vec<usize>>>, // Sender will be cloned to each of the worker threads and will be used to send results
 }
 
 impl ThreadedFileIndexer {
@@ -115,8 +111,6 @@ fn main() -> io::Result<()> {
 
     let threaded_file_indexer = ThreadedFileIndexer::new(&args.path)?;
     let index = threaded_file_indexer.collect_results()?;
-
-    eprintln!("Done");
 
     let duration = start_time.elapsed();
     println!("Indexing results: {:?}", index);
