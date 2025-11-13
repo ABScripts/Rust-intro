@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -17,14 +17,14 @@ struct Args {
 #[derive(Debug)]
 struct IndexResults {
     filename: PathBuf,
-    index: BTreeMap<String, Vec<usize>>,
+    index: HashMap<String, Vec<usize>>,
 }
 
 struct ThreadedFileIndexer {
     worker_threads: Vec<JoinHandle<()>>,
     rx: Receiver<IndexResults>, // this Receiver will be used by user of the threaded file indexer
                                 // to retrieve results of processing
-                                // tx: Sender<BTreeMap<String, Vec<usize>>>, // Sender will be cloned to each of the worker threads and will be used to send results
+                                // tx: Sender<HashMap<String, Vec<usize>>>, // Sender will be cloned to each of the worker threads and will be used to send results
 }
 
 impl ThreadedFileIndexer {
@@ -80,15 +80,15 @@ impl ThreadedFileIndexer {
         });
     }
 
-    fn collect_results(self) -> io::Result<BTreeMap<String, BTreeMap<String, Vec<usize>>>> {
-        let mut index: BTreeMap<String, BTreeMap<String, Vec<usize>>> = BTreeMap::new();
+    fn collect_results(self) -> io::Result<HashMap<String, HashMap<String, Vec<usize>>>> {
+        let mut index: HashMap<String, HashMap<String, Vec<usize>>> = HashMap::new();
         for result in self.rx.iter() {
             let filename = result.filename;
             let word_pos = result.index;
             println!("Received {:?}", filename);
 
             for (word, positions) in word_pos {
-                let entry = index.entry(word.to_string()).or_insert_with(BTreeMap::new);
+                let entry = index.entry(word.to_string()).or_insert_with(HashMap::new);
 
                 let filepath = fs::canonicalize(filename.to_path_buf())?
                     .to_string_lossy()
@@ -135,7 +135,7 @@ fn collect_files(path: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
     Ok(())
 }
 
-fn index_file(path: &Path) -> io::Result<BTreeMap<String, Vec<usize>>> {
+fn index_file(path: &Path) -> io::Result<HashMap<String, Vec<usize>>> {
     let mut file = fs::File::open(path)?;
     let mut data = String::new();
 
@@ -145,8 +145,8 @@ fn index_file(path: &Path) -> io::Result<BTreeMap<String, Vec<usize>>> {
     }
 }
 
-fn get_word_positions(string_to_index: &str) -> BTreeMap<String, Vec<usize>> {
-    let mut indexed_string = BTreeMap::<String, Vec<usize>>::new();
+fn get_word_positions(string_to_index: &str) -> HashMap<String, Vec<usize>> {
+    let mut indexed_string = HashMap::<String, Vec<usize>>::new();
 
     let mut is_tracking_word = false;
     let mut word_start_index = 0;
