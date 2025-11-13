@@ -13,6 +13,7 @@ use std::time::Instant;
 #[command(version, about = "Count word occurences in files")]
 struct Args {
     path: PathBuf,
+    indexed_files_output_path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -118,11 +119,18 @@ impl ThreadedFileIndexer {
 
 fn main() -> io::Result<()> {
     let args = Args::parse();
+    fs::exists(&args.path)?;
+    fs::exists(&args.indexed_files_output_path)?;
 
     let start_time = Instant::now();
 
     let threaded_file_indexer = ThreadedFileIndexer::new(&args.path)?;
     let index = threaded_file_indexer.collect_results()?;
+
+    fs::write(
+        args.indexed_files_output_path,
+        serde_json::to_string(&index)?,
+    )?;
 
     let duration = start_time.elapsed();
     println!("Indexing results: {:?}", index);
