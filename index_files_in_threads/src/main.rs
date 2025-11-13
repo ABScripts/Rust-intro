@@ -2,6 +2,7 @@ use clap::Parser;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read};
+use std::ops::Sub;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
@@ -27,12 +28,23 @@ struct ThreadedFileIndexer {
 }
 
 impl ThreadedFileIndexer {
+    const DEFAULT_THREADS_AMOUNT: usize = 1;
+
     fn new(path: &PathBuf) -> io::Result<ThreadedFileIndexer> {
+        let threads_num = match std::thread::available_parallelism() {
+            Ok(available_threads) => available_threads.get(),
+            Err(e) => {
+                println!("Failed to get available num of threads: {e}");
+                ThreadedFileIndexer::DEFAULT_THREADS_AMOUNT
+            }
+        }
+        .sub(1) // account for the main thread
+        .max(1); // ensure we would run on singlecore machines
+
+        println!("Will spawn {} additional threads", threads_num);
+
         let mut files = Vec::new();
         collect_files(path, &mut files)?;
-
-        let threads_num = num_cpus::get() - 1; // account for the main thread which is already running
-        eprintln!("Will spawn {} additional threads", threads_num);
 
         let shared_job_queue = Arc::new(Mutex::new(files));
         let (tx, rx) = mpsc::channel();
