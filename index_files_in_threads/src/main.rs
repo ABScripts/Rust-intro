@@ -80,14 +80,6 @@ impl ThreadedFileIndexer {
         });
     }
 
-    fn join_all(self) {
-        for thread in self.worker_threads {
-            thread
-                .join()
-                .unwrap_or_else(|e| println!("Failed to join thread: {:?}", e));
-        }
-    }
-
     fn collect_results(self) -> io::Result<BTreeMap<String, BTreeMap<String, Vec<usize>>>> {
         let mut index: BTreeMap<String, BTreeMap<String, Vec<usize>>> = BTreeMap::new();
         for result in self.rx.iter() {
@@ -109,8 +101,6 @@ impl ThreadedFileIndexer {
             }
         }
 
-        self.join_all();
-
         Ok(index)
     }
 }
@@ -122,6 +112,8 @@ fn main() -> io::Result<()> {
 
     let threaded_file_indexer = ThreadedFileIndexer::new(&args.path)?;
     let index = threaded_file_indexer.collect_results()?;
+
+    eprintln!("Done");
 
     let duration = start_time.elapsed();
     println!("Indexing results: {:?}", index);
