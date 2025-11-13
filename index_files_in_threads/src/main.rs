@@ -133,7 +133,6 @@ fn main() -> io::Result<()> {
     )?;
 
     let duration = start_time.elapsed();
-    println!("Indexing results: {:?}", index);
     println!("Done indexing files in {} seconds", duration.as_secs_f64());
 
     Ok(())
