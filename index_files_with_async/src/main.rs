@@ -90,24 +90,30 @@ async fn main() -> io::Result<()> {
 
     let start_time = Instant::now();
 
-    let mut files = Vec::new();
-    collect_files(&args.path, &mut files)?;
-
     let (tx, rx) = tokio::sync::mpsc::channel(100);
     let task_collect_files_index = tokio::spawn(collect_files_index(
         rx,
         args.indexed_files_output_path, // Q: can't be passed by reference, why?
     ));
 
-    for file in files {
-        // What would happen if we have only single thread (so that tokio can't use multiple threads)?
-        tokio::spawn(index_files(file, tx.clone()));
-    }
-    drop(tx);
+    tokio::spawn(async move {
+        // tx end will be moved in this async block, so that we don't need to drop it anymore
+        let mut files = Vec::new();
+        let Ok(_) = collect_files(&args.path, &mut files) else {
+            eprintln!("Failed to retrieve files which needs to be processed");
+            return;
+        };
 
-    task_collect_files_index
-        .await
-        .expect("Failed to collect indexed files results");
+        for file in files {
+            tokio::spawn(index_files(file, tx.clone()));
+        }
+    });
+    // no need to await on this task as tx end which is moved there
+    // will block "task_collect_files_index" from ending until we finish the above block (and tx end will be dropped)
+
+    if let Err(e) = task_collect_files_index.await {
+        eprintln!("Collector of file indexed results has failed: {e}");
+    }
 
     let duration = start_time.elapsed();
     println!("Done indexing files in {} seconds", duration.as_secs_f64());
