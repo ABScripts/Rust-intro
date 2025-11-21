@@ -1,12 +1,9 @@
 use clap::Parser;
 use std::collections::HashMap;
 use std::io::{self, Read};
-use std::ops::Sub;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Instant;
 use std::{fs, thread};
-use tokio::sync::Mutex;
 
 #[derive(Parser)]
 #[command(version, about = "Count word occurences in files")]
@@ -21,37 +18,28 @@ struct IndexResults {
     index: HashMap<String, Vec<usize>>,
 }
 
-async fn index_files(
-    job_queue: Arc<Mutex<Vec<PathBuf>>>,
-    tx_end: tokio::sync::mpsc::Sender<IndexResults>,
-) {
+async fn index_files(filepath: PathBuf, tx_end: tokio::sync::mpsc::Sender<IndexResults>) {
     println!(
         "Start indexing files at thread id {:?}",
         thread::current().id()
     );
 
-    loop {
-        let Some(filename) = job_queue.lock().await.pop() else {
-            break; // shut down
-        };
-
-        println!("Processing {:?}", filename);
-        match index_file(&filename) {
-            Ok(word_pos) => {
-                tx_end
-                    .send(IndexResults {
-                        filename,
-                        index: word_pos,
-                    })
-                    .await
-                    .unwrap();
-            }
-            Err(e) if e.kind() == io::ErrorKind::InvalidData => {
-                println!("Skip {:?} - Invalid UTF8", filename)
-            }
-            Err(e) => {
-                println!("Skip {:?} - {e}", filename)
-            }
+    println!("Processing {:?}", filepath);
+    match index_file(&filepath) {
+        Ok(word_pos) => {
+            tx_end
+                .send(IndexResults {
+                    filename: filepath,
+                    index: word_pos,
+                })
+                .await
+                .unwrap();
+        }
+        Err(e) if e.kind() == io::ErrorKind::InvalidData => {
+            println!("Skip {:?} - Invalid UTF8", filepath)
+        }
+        Err(e) => {
+            println!("Skip {:?} - {e}", filepath)
         }
     }
 }
@@ -104,39 +92,22 @@ async fn main() -> io::Result<()> {
 
     let mut files = Vec::new();
     collect_files(&args.path, &mut files)?;
-    let shared_files = Arc::new(Mutex::new(files));
 
     let (tx, rx) = tokio::sync::mpsc::channel(100);
-    let threads_num = match std::thread::available_parallelism() {
-        Ok(available_threads) => available_threads.get(),
-        Err(e) => {
-            println!("Failed to get available num of threads: {e}");
-            12
-        }
-    }
-    .sub(1)
-    .max(1);
-
-    let mut join_handles = Vec::new();
-    for _ in 0..threads_num {
-        join_handles.push(tokio::spawn(index_files(shared_files.clone(), tx.clone())));
-    }
-    drop(tx); // important to drop. Otherwise, this tx will be active, and rx end will stuck
-
-    join_handles.push(tokio::spawn(collect_files_index(
+    let task_collect_files_index = tokio::spawn(collect_files_index(
         rx,
         args.indexed_files_output_path, // Q: can't be passed by reference, why?
-    )));
+    ));
 
-    // wait for all the tasks to finish
-    println!("Just before joining the tasks");
-    for handle in join_handles {
-        handle.await.unwrap();
-        // Q: What is the difference between join and await??
-        // "join" and similar methods allow to wait for multiple handlers at the same time
-        // we can still use await as we are inside async block anyways
+    for file in files {
+        // What would happen if we have only single thread (so that tokio can't use multiple threads)?
+        tokio::spawn(index_files(file, tx.clone()));
     }
-    println!("Right after joining the tasks");
+    drop(tx);
+
+    task_collect_files_index
+        .await
+        .expect("Failed to collect indexed files results");
 
     let duration = start_time.elapsed();
     println!("Done indexing files in {} seconds", duration.as_secs_f64());
