@@ -1,0 +1,27 @@
+# Simple CLI chat
+
+This is a simple chat application written in Rust to learn and practice use of `tokio`, `tracing`, and `bytes` crates.
+
+## Goals
+- Learn how to use `tokio` for async I/O.
+- Practice logging important with the `tracing` crate.
+- Work with `bytes` to pass messages.
+
+## How It Works
+1. **Server**:
+   - Listens for client connections over TCP.
+   - Receives messages from clients.
+   - Broadcasts messages to all other connected clients.
+
+2. **Client**:
+   - Sends messages from `stdin` to the server.
+   - Displays messages from other clients.
+
+## Usage
+```sh
+cargo run -- server <port>
+```
+
+```sh
+cargo run -- client <server-ip> <port>
+```
