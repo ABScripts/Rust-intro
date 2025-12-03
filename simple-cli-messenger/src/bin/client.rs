@@ -9,7 +9,7 @@ use clap::Parser;
 #[command(name = "client")]
 #[command(about = "A simple CLI messenger client", long_about = None)]
 struct Args {
-    #[arg(short, long)]
+    #[arg(long)]
     host: String,
     
     #[arg(short, long)]
