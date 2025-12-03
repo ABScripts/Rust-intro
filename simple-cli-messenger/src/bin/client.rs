@@ -1,19 +1,8 @@
-use bytes::{Buf, BufMut, BytesMut};
 use tokio::{
-    self,
-    io::{self, AsyncReadExt, AsyncWriteExt, unix::AsyncFdTryNewError},
-    net::{self, TcpListener, TcpStream},
-    spawn,
+    io::{self, AsyncReadExt, AsyncWriteExt},
+    net::{tcp:: {OwnedWriteHalf, OwnedReadHalf}, TcpSocket},
     task::JoinSet,
 };
-
-use std::vec::Vec;
-use std::{cell::RefCell, str::FromStr};
-use std::{
-    io::Error,
-    sync::{Arc, Mutex},
-};
-use std::{io::LineWriter, rc::Rc};
 
 struct Client {
     writer: ClientWriter,
@@ -22,16 +11,16 @@ struct Client {
 
 struct ClientWriter {
     username: String, // send my messages to server side to have unified way of printing messages to the common feed?
-    tx: tokio::net::tcp::OwnedWriteHalf,
+    tx: OwnedWriteHalf,
 }
 
 struct ClientReader {
-    rx: tokio::net::tcp::OwnedReadHalf,
+    rx: OwnedReadHalf,
 }
 
 impl Client {
     async fn connect(addr: std::net::SocketAddr, username: String) -> io::Result<Client> {
-        let sock = tokio::net::TcpSocket::new_v4()?;
+        let sock = TcpSocket::new_v4()?;
         let stream = sock.connect(addr).await?;
 
         let (rx, tx) = stream.into_split();
