@@ -3,6 +3,18 @@ use tokio::{
     net::{tcp:: {OwnedWriteHalf, OwnedReadHalf}, TcpSocket},
     task::JoinSet,
 };
+use clap::Parser;
+
+#[derive(Parser)]
+#[command(name = "client")]
+#[command(about = "A simple CLI messenger client", long_about = None)]
+struct Args {
+    #[arg(short, long)]
+    host: String,
+    
+    #[arg(short, long)]
+    port: u16,
+}
 
 struct Client {
     writer: ClientWriter,
@@ -93,7 +105,8 @@ fn input_username() -> std::io::Result<String> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // use anyhow as I have two different methods returning Result which is defined in different modules
+    let args = Args::parse();
+    
     let username = loop {
         match input_username() {
             Ok(username) => break username,
@@ -104,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let addr = "127.0.0.1:3456".parse()?;
+    let addr = format!("{}:{}", args.host, args.port).parse()?;
     let client = Client::connect(addr, username).await?;
     client.run().await?;
 
