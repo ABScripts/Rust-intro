@@ -1,9 +1,26 @@
+use clap::Parser;
 use tokio::{
     io::{self, AsyncReadExt, AsyncWriteExt},
-    net::{tcp:: {OwnedWriteHalf, OwnedReadHalf}, TcpSocket},
+    net::{
+        TcpSocket,
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+    },
     task::JoinSet,
 };
-use clap::Parser;
+
+use bytes::{Buf, BufMut, BytesMut};
+use std::{arch::x86_64::_mm_pause, collections::HashMap, hash::Hash, str::Bytes, sync::Arc};
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::{broadcast, mpsc},
+    task::{self},
+};
+
+// This only works in lib/crate code, in src/bin I need to specify actual crate name
+// use crate::client_message;
+
+use simple_cli_messenger::client_message::ClientMessage;
+use simple_cli_messenger::network_message::NetworkMessage;
 
 #[derive(Parser)]
 #[command(name = "client")]
@@ -11,7 +28,7 @@ use clap::Parser;
 struct Args {
     #[arg(long)]
     host: String,
-    
+
     #[arg(short, long)]
     port: u16,
 }
@@ -62,25 +79,41 @@ impl Client {
 impl ClientReader {
     async fn read_incoming(mut self) -> anyhow::Result<()> {
         loop {
-            let read = self.rx.read_f32().await?;
-            println!("Received message: {read}");
+            match NetworkMessage::read(&mut self.rx).await {
+                Ok(msg_net) => {
+                    eprintln!("Received serialized view: |{:?}|", msg_net.get_payload());
+
+                    let msg_json = ClientMessage::from_json(msg_net.get_payload());
+                    eprintln!("Received JSON: {:?}", msg_json);
+                }
+                Err(e) => {
+                    eprintln!("Failed to receive message: {e}");
+                    return Err(e.into());
+                }
+            }
         }
     }
 }
 
+use tokio::io::{AsyncBufReadExt, BufReader};
+
 impl ClientWriter {
     async fn chat(mut self) -> anyhow::Result<()> {
         loop {
-            let mut input = String::new();
-            println!("Enter a number to send: ");
-            std::io::stdin().read_line(&mut input)?;
+            eprint!("Type: "); // otherwise the output is not flushed to stdin in time; just quickest way
+            let mut reader = BufReader::new(tokio::io::stdin());
+            let mut message = Vec::new();
+            match reader.read_until(b'\n', &mut message).await {
+                Ok(_) => {
+                    let msg_cli = ClientMessage::data(0, String::from_utf8(message)?);
+                    let msg_net = NetworkMessage::new(msg_cli.to_json()?.as_bytes());
 
-            println!("User input: {input}");
-
-            match input.trim().parse::<f32>() {
-                Ok(num) => self.tx.write_f32(num).await?,
-                Err(_) => {
-                    eprintln!("Invalid number, try again.");
+                    self.tx.write_all(msg_net.get_payload()).await?;
+                    println!("Sent: {:?}", msg_cli.to_json());
+                }
+                Err(e) => {
+                    println!("Error: {}", e);
+                    continue;
                 }
             }
         }
@@ -106,7 +139,7 @@ fn input_username() -> std::io::Result<String> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-    
+
     let username = loop {
         match input_username() {
             Ok(username) => break username,
