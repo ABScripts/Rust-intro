@@ -62,26 +62,25 @@ impl Client {
 
     async fn run(&self) {
         let mut client_join_set = JoinSet::new();
-        let a = client_join_set.spawn({
+        client_join_set.spawn({
             let reader = self.reader.clone();
             async move {
-                reader.lock().await.handle_incoming().await;
+                match reader.lock().await.handle_incoming().await {
+                    Ok(_) => {}
+                    Err(e) => tracing::error!("Handle incoming task has failed with error: {e}"),
+                }
             }
         });
-        let b = client_join_set.spawn({
+        client_join_set.spawn({
             let writer = self.writer.clone();
             async move {
-                writer.lock().await.handle_outgoing().await;
+                match writer.lock().await.handle_outgoing().await {
+                    Ok(_) => {}
+                    Err(e) => tracing::error!("Handle outgoing task has failed with error: {e}"),
+                }
             }
         });
         client_join_set.join_next().await;
-
-        if a.is_finished() {
-            tracing::warn!("client incoming task has ended");
-        }
-        if b.is_finished() {
-            tracing::warn!("client outgoing task has ended");
-        }
 
         tracing::warn!("Client {} died", self.id);
         // if either of the workers dies, we kill all the tasks
@@ -165,6 +164,7 @@ impl ClientReader {
         loop {
             match NetworkMessage::read(&mut self.rx_stream).await {
                 Ok(msg_net) => {
+                    tracing::info!("Parsing message");
                     let mut msg_cli = ClientMessage::from_json(msg_net.get_payload())?;
                     msg_cli.set_id(self.id);
 
@@ -207,7 +207,7 @@ impl ClientReader {
             //     }
             // }
         }
-        tracing::warn!("sdfsfs");
+
         Ok(())
     }
 }
@@ -239,7 +239,6 @@ impl ClientWriter {
             }
         }
 
-        tracing::warn!("sdfsdfsd");
         Ok(())
     }
 }

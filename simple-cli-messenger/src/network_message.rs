@@ -22,19 +22,13 @@ impl NetworkMessage {
     pub async fn read(read_sock: &mut tokio::net::tcp::OwnedReadHalf) -> io::Result<Self> {
         let mut msg_net = NetworkMessage::default();
 
-        if let Ok(msg_len) = read_sock.read_u64().await {
-            let mut read = 0;
-            let mut buf: [u8; 512] = [0; 512];
-            while read < msg_len {
-                let buf_slice = &mut buf[..(msg_len - read) as usize];
-                match read_sock.read_exact(buf_slice).await {
-                    Ok(read_just_now) => {
-                        read += read_just_now as u64;
-                        msg_net.payload.extend_from_slice(buf_slice);
-                    }
-                    Err(e) => return Err(e.into()),
-                }
-            }
+        let msg_len = read_sock.read_u64().await?;
+        let mut read = 0;
+        let mut buf: [u8; 512] = [0; 512];
+        while read < msg_len {
+            let buf_slice = &mut buf[..(msg_len - read) as usize];
+            read += read_sock.read_exact(buf_slice).await? as u64;
+            msg_net.payload.extend_from_slice(buf_slice);
         }
 
         return Ok(msg_net);
