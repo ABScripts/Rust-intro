@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-struct ClientMessageCommon {
-    id: u8,
+pub struct ClientMessageCommon {
+    pub id: u8,
 }
 
 /// In-house view on the client message

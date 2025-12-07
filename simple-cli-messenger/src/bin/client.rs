@@ -9,7 +9,10 @@ use tokio::{
 };
 
 use bytes::{Buf, BufMut, BytesMut};
-use std::{arch::x86_64::_mm_pause, collections::HashMap, hash::Hash, str::Bytes, sync::Arc};
+use std::{
+    any::Any, arch::x86_64::_mm_pause, collections::HashMap, hash::Hash, io::Write, str::Bytes,
+    sync::Arc,
+};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{broadcast, mpsc},
@@ -79,18 +82,34 @@ impl Client {
 impl ClientReader {
     async fn read_incoming(mut self) -> anyhow::Result<()> {
         loop {
-            match NetworkMessage::read(&mut self.rx).await {
-                Ok(msg_net) => {
-                    eprintln!("Received serialized view: |{:?}|", msg_net.get_payload());
+            let msg_net = NetworkMessage::read(&mut self.rx).await?;
+            tracing::debug!(
+                "Received message; serialized view: |{:?}|",
+                msg_net.get_payload()
+            );
 
-                    let msg_json = ClientMessage::from_json(msg_net.get_payload());
-                    eprintln!("Received JSON: {:?}", msg_json);
-                }
+            let msg_cli = match ClientMessage::from_json(msg_net.get_payload()) {
                 Err(e) => {
-                    eprintln!("Failed to receive message: {e}");
-                    return Err(e.into());
+                    tracing::error!(
+                        "Failed to construct ClientMessage from serizealized view: |{:?}|, error: {e}",
+                        msg_net.get_payload()
+                    );
+                    continue;
                 }
-            }
+                Ok(msg_cli) => msg_cli,
+            };
+
+            match msg_cli {
+                ClientMessage::Disconnected(common) => {
+                    tracing::info!("Client {} has disconnected...", common.id);
+                }
+                ClientMessage::Data(common, payload) => {
+                    tracing::info!("From {}: {}", common.id, payload);
+                }
+                ClientMessage::Connected(common) => {
+                    tracing::info!("Client {} has connected...", common.id);
+                }
+            };
         }
     }
 }
@@ -100,7 +119,9 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 impl ClientWriter {
     async fn chat(mut self) -> anyhow::Result<()> {
         loop {
-            eprint!("Type: "); // otherwise the output is not flushed to stdin in time; just quickest way
+            print!("Type: ");
+            std::io::stdout().flush()?; // to actually see the above printed line (avoid buffering)
+
             let mut reader = BufReader::new(tokio::io::stdin());
             let mut message = Vec::new();
             match reader.read_until(b'\n', &mut message).await {
@@ -109,10 +130,10 @@ impl ClientWriter {
                     let msg_net = NetworkMessage::new(msg_cli.to_json()?.as_bytes());
 
                     self.tx.write_all(msg_net.get_payload()).await?;
-                    println!("Sent: {:?}", msg_cli.to_json());
+                    tracing::debug!("Sent: {:?}", msg_cli.to_json());
                 }
                 Err(e) => {
-                    println!("Error: {}", e);
+                    tracing::error!("Failed to get input from user: {}", e);
                     continue;
                 }
             }
@@ -123,12 +144,13 @@ impl ClientWriter {
 fn input_username() -> std::io::Result<String> {
     loop {
         let mut input = String::new();
-        println!("Enter username to join the chat: ");
+        print!("Enter username to join the chat: ");
+        std::io::stdout().flush()?;
         std::io::stdin().read_line(&mut input)?;
 
         let input = input.trim();
         if input.is_empty() {
-            eprintln!("Username cannot be empty");
+            tracing::warn!("Username cannot be empty. Try again.");
             continue;
         }
 
@@ -138,13 +160,14 @@ fn input_username() -> std::io::Result<String> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
     let args = Args::parse();
 
     let username = loop {
         match input_username() {
             Ok(username) => break username,
             Err(e) => {
-                eprintln!("Failed to read username: {e}. Try again.");
+                tracing::error!("Failed to read username: {e}. Try again.");
                 continue;
             }
         }
