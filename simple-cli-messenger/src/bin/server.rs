@@ -211,27 +211,6 @@ impl ClientReader {
                     break;
                 }
             }
-
-            // match self.rx_stream.read_f32().await {
-            //     Ok(msg) => {
-            //         tracing::info!("Received message from client {}: {}", self.username, msg);
-
-            //         let msg = ClientMessage::data(self.username, msg);
-            //         if self.tx_to_message_distributor.send(msg).await.is_err() {
-            //             tracing::error!("Failed to redistribute message from client {}", self.username);
-            //             break;
-            //         }
-            //     }
-            //     Err(e) => {
-            //         self.tx_to_message_distributor
-            //             .send(ClientMessage::disconnected(self.username))
-            //             .await;
-
-            //         tracing::info!("Client {} disconnected: {}", self.username, e);
-
-            //         break;
-            //     }
-            // }
         }
 
         Ok(())
