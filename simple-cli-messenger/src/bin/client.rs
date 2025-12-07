@@ -165,7 +165,7 @@ async fn main() -> anyhow::Result<()> {
 
     let username = match input_username() {
         Err(e) => {
-            tracing::error!("Failed to read username: {e}. Try again.");
+            tracing::error!("Failed to read username.");
             return Err(e.into());
         }
         Ok(username) => username,
