@@ -143,13 +143,13 @@ impl ClientWriter {
 
 fn input_username() -> std::io::Result<String> {
     loop {
-        let mut input = String::new();
         print!("Enter username to join the chat: ");
         std::io::stdout().flush()?;
+
+        let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
 
-        let input = input.trim();
-        if input.is_empty() {
+        if input.trim().is_empty() {
             tracing::warn!("Username cannot be empty. Try again.");
             continue;
         }
@@ -163,14 +163,12 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
 
-    let username = loop {
-        match input_username() {
-            Ok(username) => break username,
-            Err(e) => {
-                tracing::error!("Failed to read username: {e}. Try again.");
-                continue;
-            }
+    let username = match input_username() {
+        Err(e) => {
+            tracing::error!("Failed to read username: {e}. Try again.");
+            return Err(e.into());
         }
+        Ok(username) => username,
     };
 
     let addr = format!("{}:{}", args.host, args.port).parse()?;
