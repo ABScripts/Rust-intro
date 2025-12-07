@@ -16,30 +16,30 @@ struct Server {
     listener: TcpListener,
     tx_to_message_distributor: mpsc::Sender<ClientMessage>,
     tx_to_clients: broadcast::Sender<ClientMessage>,
-    connected_clients: HashMap<u8, Arc<Client>>,
+    connected_clients: HashMap<String, Arc<Client>>,
 }
 
 struct Client {
-    id: u8,
+    username: String,
     reader: Arc<Mutex<ClientReader>>,
     writer: Arc<Mutex<ClientWriter>>,
 }
 
 struct ClientReader {
-    id: u8,
+    username: String,
     rx_stream: tokio::net::tcp::OwnedReadHalf,
     tx_to_message_distributor: mpsc::Sender<ClientMessage>,
 }
 
 struct ClientWriter {
-    id: u8,
+    username: String,
     tx_stream: tokio::net::tcp::OwnedWriteHalf,
     rx_from_message_distributor: broadcast::Receiver<ClientMessage>,
 }
 
 impl Client {
     fn new(
-        id: u8,
+        username: String,
         sock: TcpStream,
         tx_to_message_distributor: mpsc::Sender<ClientMessage>,
         rx_from_message_distributor: broadcast::Receiver<ClientMessage>,
@@ -47,22 +47,25 @@ impl Client {
         let (rx, tx) = sock.into_split();
 
         let reader = Arc::new(Mutex::new(ClientReader {
-            id,
+            username: username.clone(),
             rx_stream: rx,
             tx_to_message_distributor,
         }));
         let writer = Arc::new(Mutex::new(ClientWriter {
-            id,
+            username: username.clone(),
             tx_stream: tx,
             rx_from_message_distributor,
         }));
 
-        Self { id, reader, writer }
+        Self {
+            username: username.clone(),
+            reader,
+            writer,
+        }
     }
 
     async fn run(&self) {
-        let mut client_join_set = JoinSet::new();
-        client_join_set.spawn({
+        let handle_incoming_messages = {
             let reader = self.reader.clone();
             async move {
                 match reader.lock().await.handle_incoming().await {
@@ -70,8 +73,8 @@ impl Client {
                     Err(e) => tracing::error!("Handle incoming task has failed with error: {e}"),
                 }
             }
-        });
-        client_join_set.spawn({
+        };
+        let handle_outgoing_messages = {
             let writer = self.writer.clone();
             async move {
                 match writer.lock().await.handle_outgoing().await {
@@ -79,10 +82,14 @@ impl Client {
                     Err(e) => tracing::error!("Handle outgoing task has failed with error: {e}"),
                 }
             }
-        });
+        };
+
+        let mut client_join_set = JoinSet::new();
+        client_join_set.spawn(handle_incoming_messages);
+        client_join_set.spawn(handle_outgoing_messages);
         client_join_set.join_next().await;
 
-        tracing::warn!("Client {} died", self.id);
+        tracing::warn!("Client {} has died", self.username);
         // if either of the workers dies, we kill all the tasks
         // client object still will be alive though (cleanup to be added)
     }
@@ -107,27 +114,43 @@ impl Server {
         })
     }
 
+    async fn retrieve_client_username(&mut self, stream: &mut TcpStream) -> anyhow::Result<String> {
+        let msg_net = NetworkMessage::read(stream).await?;
+        let msg_cli = ClientMessage::from_json(msg_net.get_payload())?;
+
+        let ClientMessage::Connected(common) = msg_cli else {
+            return Err(anyhow::anyhow!(
+                "Unexpected first message from the client: {:?}.",
+                msg_cli
+            ));
+        };
+
+        return Ok(common.username);
+    }
+
     async fn run(mut self) -> anyhow::Result<()> {
-        let mut client_id_tracker: u8 = 0;
-
         loop {
-            let (stream, socket_addr) = self.listener.accept().await?;
+            let (mut stream, socket_addr) = self.listener.accept().await?;
 
-            tracing::info!(
-                "New client {} connected from {}",
-                client_id_tracker,
-                socket_addr
-            );
+            let username = match self.retrieve_client_username(&mut stream).await {
+                Err(e) => {
+                    tracing::error!("Failed to retrieve client username: {e}");
+                    continue;
+                }
+                Ok(username) => username,
+            };
+
+            tracing::info!("[{username}] connected from {socket_addr}");
 
             self.tx_to_message_distributor
-                .send(ClientMessage::connected(client_id_tracker))
+                .send(ClientMessage::connected(username.clone()))
                 .await?;
 
             // TODO: Prepare thoroughout explanation, what is going on here
             // Think, If I can simplify this
             // Maybe this implementation gives me abilities which I don't need as for now
             let client = Arc::new(Client::new(
-                client_id_tracker,
+                username.clone(),
                 stream,
                 self.tx_to_message_distributor.clone(),
                 self.tx_to_clients.subscribe(),
@@ -140,10 +163,7 @@ impl Server {
                 }
             });
 
-            client_id_tracker += 1;
-
-            self.connected_clients
-                .insert(client_id_tracker, client.clone());
+            self.connected_clients.insert(username, client.clone());
         }
     }
 
@@ -166,21 +186,27 @@ impl ClientReader {
                 Ok(msg_net) => {
                     tracing::info!("Parsing message");
                     let mut msg_cli = ClientMessage::from_json(msg_net.get_payload())?;
-                    msg_cli.set_id(self.id);
 
-                    tracing::info!("Received message from client {}: {:?}", self.id, msg_cli);
+                    tracing::info!(
+                        "Received message from client {}: {:?}",
+                        self.username,
+                        msg_cli
+                    );
 
                     if self.tx_to_message_distributor.send(msg_cli).await.is_err() {
-                        tracing::error!("Failed to redistribute message from client {}", self.id);
+                        tracing::error!(
+                            "Failed to redistribute message from client {}",
+                            self.username
+                        );
                         break;
                     }
                 }
                 Err(e) => {
                     self.tx_to_message_distributor
-                        .send(ClientMessage::disconnected(self.id))
+                        .send(ClientMessage::disconnected(self.username.clone()))
                         .await?;
 
-                    tracing::info!("Client {} disconnected: {}", self.id, e);
+                    tracing::info!("Client {} disconnected: {}", self.username, e);
 
                     break;
                 }
@@ -188,20 +214,20 @@ impl ClientReader {
 
             // match self.rx_stream.read_f32().await {
             //     Ok(msg) => {
-            //         tracing::info!("Received message from client {}: {}", self.id, msg);
+            //         tracing::info!("Received message from client {}: {}", self.username, msg);
 
-            //         let msg = ClientMessage::data(self.id, msg);
+            //         let msg = ClientMessage::data(self.username, msg);
             //         if self.tx_to_message_distributor.send(msg).await.is_err() {
-            //             tracing::error!("Failed to redistribute message from client {}", self.id);
+            //             tracing::error!("Failed to redistribute message from client {}", self.username);
             //             break;
             //         }
             //     }
             //     Err(e) => {
             //         self.tx_to_message_distributor
-            //             .send(ClientMessage::disconnected(self.id))
+            //             .send(ClientMessage::disconnected(self.username))
             //             .await;
 
-            //         tracing::info!("Client {} disconnected: {}", self.id, e);
+            //         tracing::info!("Client {} disconnected: {}", self.username, e);
 
             //         break;
             //     }
@@ -215,11 +241,11 @@ impl ClientReader {
 impl ClientWriter {
     async fn handle_outgoing(&mut self) -> anyhow::Result<()> {
         while let Ok(msg) = self.rx_from_message_distributor.recv().await {
-            if msg.get_id() == self.id {
+            if *msg.get_username() == self.username {
                 tracing::trace!(
                     "Ignore message destined to {}, we are: {}",
-                    msg.get_id(),
-                    self.id
+                    msg.get_username(),
+                    self.username
                 );
                 continue;
             }
@@ -231,9 +257,9 @@ impl ClientWriter {
             tracing::debug!("Serialized view: |{:?}|", msg_net.get_payload());
 
             match self.tx_stream.write(&msg_net.get_payload()).await {
-                Ok(_) => tracing::info!("Sent message {} to client {}", msg_json, self.id),
+                Ok(_) => tracing::info!("Sent message {} to client {}", msg_json, self.username),
                 Err(e) => {
-                    tracing::error!("Failed to send message to client {}: {}", self.id, e);
+                    tracing::error!("Failed to send message to client {}: {}", self.username, e);
                     break;
                 }
             }

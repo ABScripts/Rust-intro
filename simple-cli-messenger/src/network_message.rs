@@ -19,7 +19,7 @@ impl NetworkMessage {
         NetworkMessage { payload: bytes }
     }
 
-    pub async fn read(read_sock: &mut tokio::net::tcp::OwnedReadHalf) -> io::Result<Self> {
+    pub async fn read<R: tokio::io::AsyncRead + Unpin>(read_sock: &mut R) -> io::Result<Self> {
         let mut msg_net = NetworkMessage::default();
 
         let msg_len = read_sock.read_u64().await?;

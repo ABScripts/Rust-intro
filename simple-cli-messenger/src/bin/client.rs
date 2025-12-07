@@ -101,13 +101,13 @@ impl ClientReader {
 
             match msg_cli {
                 ClientMessage::Disconnected(common) => {
-                    tracing::info!("Client {} has disconnected...", common.id);
+                    tracing::info!("[{}] has disconnected...", common.username);
                 }
                 ClientMessage::Data(common, payload) => {
-                    tracing::info!("From {}: {}", common.id, payload);
+                    tracing::info!("[{}]: {}", common.username, payload);
                 }
                 ClientMessage::Connected(common) => {
-                    tracing::info!("Client {} has connected...", common.id);
+                    tracing::info!("[{}] has connected...", common.username);
                 }
             };
         }
@@ -118,6 +118,12 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 
 impl ClientWriter {
     async fn chat(mut self) -> anyhow::Result<()> {
+        // Let server side our username
+        let msg_cli = ClientMessage::connected(self.username.clone());
+        let msg_net = NetworkMessage::new(msg_cli.to_json()?.as_bytes());
+        self.tx.write_all(msg_net.get_payload()).await?;
+        tracing::debug!("Sent: {:?}", msg_cli.to_json());
+
         loop {
             print!("Type: ");
             std::io::stdout().flush()?; // to actually see the above printed line (avoid buffering)
@@ -126,7 +132,8 @@ impl ClientWriter {
             let mut message = Vec::new();
             match reader.read_until(b'\n', &mut message).await {
                 Ok(_) => {
-                    let msg_cli = ClientMessage::data(0, String::from_utf8(message)?);
+                    let msg_cli =
+                        ClientMessage::data(self.username.clone(), String::from_utf8(message)?);
                     let msg_net = NetworkMessage::new(msg_cli.to_json()?.as_bytes());
 
                     self.tx.write_all(msg_net.get_payload()).await?;
@@ -154,7 +161,7 @@ fn input_username() -> std::io::Result<String> {
             continue;
         }
 
-        break Ok(input.to_string());
+        break Ok(input.trim_end().to_string());
     }
 }
 

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ClientMessageCommon {
-    pub id: u8,
+    pub username: String,
 }
 
 /// In-house view on the client message
@@ -15,31 +15,23 @@ pub enum ClientMessage {
 
 // TODO: I need to figure out if there is a better way to implement this
 impl ClientMessage {
-    pub fn disconnected(id: u8) -> Self {
-        return ClientMessage::Disconnected(ClientMessageCommon { id });
+    pub fn disconnected(username: String) -> Self {
+        return ClientMessage::Disconnected(ClientMessageCommon { username });
     }
 
-    pub fn connected(id: u8) -> Self {
-        return ClientMessage::Connected(ClientMessageCommon { id });
+    pub fn connected(username: String) -> Self {
+        return ClientMessage::Connected(ClientMessageCommon { username });
     }
 
-    pub fn data(id: u8, data: String) -> Self {
-        return ClientMessage::Data(ClientMessageCommon { id }, data);
+    pub fn data(username: String, data: String) -> Self {
+        return ClientMessage::Data(ClientMessageCommon { username }, data);
     }
 
-    pub fn get_id(&self) -> u8 {
+    pub fn get_username(&self) -> &String {
         match self {
             ClientMessage::Disconnected(common)
             | ClientMessage::Connected(common)
-            | ClientMessage::Data(common, ..) => common.id,
-        }
-    }
-
-    pub fn set_id(&mut self, id: u8) {
-        match self {
-            ClientMessage::Disconnected(common)
-            | ClientMessage::Connected(common)
-            | ClientMessage::Data(common, ..) => common.id = id,
+            | ClientMessage::Data(common, ..) => &common.username,
         }
     }
 
