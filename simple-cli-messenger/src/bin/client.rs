@@ -1,27 +1,16 @@
 use clap::Parser;
+use std::{io::Write, time::Duration};
 use tokio::{
-    io::{self, AsyncReadExt, AsyncWriteExt},
+    io::{self, AsyncWriteExt},
     net::{
         TcpSocket,
         tcp::{OwnedReadHalf, OwnedWriteHalf},
     },
+    sync::mpsc,
     task::JoinSet,
 };
-
-use bytes::{Buf, BufMut, BytesMut};
-use std::{
-    any::Any, arch::x86_64::_mm_pause, collections::HashMap, hash::Hash, io::Write, str::Bytes,
-    sync::Arc,
-};
-use tokio::{
-    net::{TcpListener, TcpStream},
-    sync::{broadcast, mpsc},
-    task::{self},
-};
-
 // This only works in lib/crate code, in src/bin I need to specify actual crate name
 // use crate::client_message;
-
 use simple_cli_messenger::client_message::ClientMessage;
 use simple_cli_messenger::network_message::NetworkMessage;
 
@@ -37,7 +26,7 @@ struct Args {
 }
 
 struct Client {
-    writer: ClientWriter,
+    writer: ClientWriterActorHandle,
     reader: ClientReader,
 }
 
@@ -56,21 +45,52 @@ impl Client {
         let stream = sock.connect(addr).await?;
 
         let (rx, tx) = stream.into_split();
-        let writer = ClientWriter { username, tx };
+        let writer = ClientWriterActorHandle::new(ClientWriter { username, tx });
         let reader = ClientReader { rx };
 
         Ok(Client { writer, reader })
     }
 
-    fn into_split(self) -> (ClientReader, ClientWriter) {
+    fn into_split(self) -> (ClientReader, ClientWriterActorHandle) {
         (self.reader, self.writer)
     }
 
     async fn run(self) -> anyhow::Result<()> {
         let (rx, tx) = self.into_split();
-        let mut join_set = JoinSet::new();
 
-        join_set.spawn(tx.chat());
+        let mut join_set = JoinSet::new();
+        join_set.spawn({
+            let mut client_writer_actor_handle = tx.clone();
+            async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    client_writer_actor_handle.send_keepalive().await;
+                }
+            }
+        });
+        join_set.spawn({
+            let mut client_writer_actor_handle = tx.clone();
+            async move {
+                loop {
+                    print!("Type: ");
+                    std::io::stdout().flush()?; // to actually see the above printed line (avoid buffering)
+
+                    let mut reader = BufReader::new(tokio::io::stdin());
+                    let mut message = Vec::new();
+                    match reader.read_until(b'\n', &mut message).await {
+                        Ok(_) => {
+                            client_writer_actor_handle
+                                .send_message(String::from_utf8(message)?)
+                                .await;
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to get input from user: {}", e);
+                            continue;
+                        }
+                    }
+                }
+            }
+        });
         join_set.spawn(rx.read_incoming());
 
         join_set.join_all().await;
@@ -109,6 +129,7 @@ impl ClientReader {
                 ClientMessage::Connected(common) => {
                     tracing::info!("[{}] has connected...", common.username);
                 }
+                _ => {}
             };
         }
     }
@@ -116,35 +137,77 @@ impl ClientReader {
 
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-impl ClientWriter {
-    async fn chat(mut self) -> anyhow::Result<()> {
-        // Let server side our username
-        let msg_cli = ClientMessage::connected(self.username.clone());
+enum ClientWriterActorMessage {
+    SendData(String),
+    Keepalive(),
+}
+
+struct ClientWriterActor {
+    receiver: mpsc::Receiver<ClientWriterActorMessage>,
+    writer: ClientWriter,
+}
+
+impl ClientWriterActor {
+    fn new(receiver: mpsc::Receiver<ClientWriterActorMessage>, writer: ClientWriter) -> Self {
+        Self { receiver, writer }
+    }
+
+    async fn run(&mut self) -> anyhow::Result<()> {
+        // send username of the client to the server
+        let msg_cli = ClientMessage::connected(self.writer.username.clone());
         let msg_net = NetworkMessage::new(msg_cli.to_json()?.as_bytes());
-        self.tx.write_all(msg_net.get_payload()).await?;
+        self.writer.tx.write_all(msg_net.get_payload()).await?;
         tracing::debug!("Sent: {:?}", msg_cli.to_json());
 
-        loop {
-            print!("Type: ");
-            std::io::stdout().flush()?; // to actually see the above printed line (avoid buffering)
-
-            let mut reader = BufReader::new(tokio::io::stdin());
-            let mut message = Vec::new();
-            match reader.read_until(b'\n', &mut message).await {
-                Ok(_) => {
-                    let msg_cli =
-                        ClientMessage::data(self.username.clone(), String::from_utf8(message)?);
-                    let msg_net = NetworkMessage::new(msg_cli.to_json()?.as_bytes());
-
-                    self.tx.write_all(msg_net.get_payload()).await?;
-                    tracing::debug!("Sent: {:?}", msg_cli.to_json());
+        while let Some(actor_msg) = self.receiver.recv().await {
+            let msg_cli = match actor_msg {
+                ClientWriterActorMessage::SendData(data) => {
+                    ClientMessage::data(self.writer.username.clone(), data)
                 }
-                Err(e) => {
-                    tracing::error!("Failed to get input from user: {}", e);
-                    continue;
+                ClientWriterActorMessage::Keepalive() => {
+                    ClientMessage::keepalive(self.writer.username.clone())
                 }
-            }
+            };
+
+            let msg_net = NetworkMessage::new(msg_cli.to_json()?.as_bytes());
+            self.writer.tx.write_all(msg_net.get_payload()).await?;
+
+            tracing::debug!("Sent: {:?}", msg_cli.to_json());
         }
+
+        return Ok(());
+    }
+}
+
+#[derive(Clone)]
+struct ClientWriterActorHandle {
+    sender: mpsc::Sender<ClientWriterActorMessage>,
+}
+
+impl ClientWriterActorHandle {
+    fn new(writer: ClientWriter) -> Self {
+        let (sender, receiver) = mpsc::channel(100);
+
+        let mut client_writer_actor = ClientWriterActor::new(receiver, writer);
+        tokio::spawn(async move {
+            client_writer_actor.run();
+        });
+
+        ClientWriterActorHandle { sender }
+    }
+
+    async fn send_message(&mut self, data: String) -> anyhow::Result<()> {
+        Ok(self
+            .sender
+            .send(ClientWriterActorMessage::SendData(data))
+            .await?)
+    }
+
+    async fn send_keepalive(&mut self) -> anyhow::Result<()> {
+        Ok(self
+            .sender
+            .send(ClientWriterActorMessage::Keepalive())
+            .await?)
     }
 }
 

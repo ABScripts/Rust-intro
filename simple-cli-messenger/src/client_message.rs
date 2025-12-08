@@ -11,6 +11,7 @@ pub enum ClientMessage {
     Disconnected(ClientMessageCommon),
     Connected(ClientMessageCommon),
     Data(ClientMessageCommon, String),
+    KeepAlive(ClientMessageCommon),
 }
 
 // TODO: I need to figure out if there is a better way to implement this
@@ -27,10 +28,15 @@ impl ClientMessage {
         return ClientMessage::Data(ClientMessageCommon { username }, data);
     }
 
+    pub fn keepalive(username: String) -> Self {
+        return ClientMessage::KeepAlive(ClientMessageCommon { username });
+    }
+
     pub fn get_username(&self) -> &String {
         match self {
             ClientMessage::Disconnected(common)
             | ClientMessage::Connected(common)
+            | ClientMessage::KeepAlive(common)
             | ClientMessage::Data(common, ..) => &common.username,
         }
     }
