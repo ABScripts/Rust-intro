@@ -190,7 +190,7 @@ impl ClientWriterActorHandle {
 
         let mut client_writer_actor = ClientWriterActor::new(receiver, writer);
         tokio::spawn(async move {
-            client_writer_actor.run();
+            client_writer_actor.run().await;
         });
 
         ClientWriterActorHandle { sender }
