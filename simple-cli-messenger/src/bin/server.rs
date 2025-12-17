@@ -184,6 +184,8 @@ impl Server {
 
 impl ClientReader {
     async fn handle_incoming(&mut self) -> anyhow::Result<()> {
+        tracing::info!("Started getting messages");
+
         loop {
             match NetworkMessage::read(&mut self.rx_stream).await {
                 Ok(msg_net) => {
