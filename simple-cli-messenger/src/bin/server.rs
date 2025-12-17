@@ -1,5 +1,4 @@
-use bytes::{Buf, BufMut, BytesMut};
-use std::{arch::x86_64::_mm_pause, collections::HashMap, hash::Hash, str::Bytes, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
     io::{self, AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -11,6 +10,7 @@ use ::tokio::sync::Mutex;
 
 use simple_cli_messenger::client_message::ClientMessage;
 use simple_cli_messenger::network_message::NetworkMessage;
+use simple_cli_messenger::timeout::Timeout;
 
 struct Server {
     listener: TcpListener,
@@ -65,15 +65,18 @@ impl Client {
     }
 
     async fn run(&self) {
-        let handle_incoming_messages = {
+        let handle_incoming_messages = Timeout::new(Duration::from_secs(6), {
             let reader = self.reader.clone();
             async move {
                 match reader.lock().await.handle_incoming().await {
                     Ok(_) => {}
-                    Err(e) => tracing::error!("Handle incoming task has failed with error: {e}"),
+                    Err(e) => {
+                        tracing::error!("Handle incoming task has failed with error: {e}")
+                    }
                 }
             }
-        };
+        });
+
         let handle_outgoing_messages = {
             let writer = self.writer.clone();
             async move {
