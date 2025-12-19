@@ -1,7 +1,6 @@
 use bytes::{BufMut, BytesMut};
 use std::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::tcp::OwnedReadHalf;
 
 /// Wrapper for any kind of payload which needs to be sent over the network
 /// Data is packed as len + payload

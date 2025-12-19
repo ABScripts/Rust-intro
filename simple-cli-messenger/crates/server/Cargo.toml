@@ -1,0 +1,11 @@
+[package]
+name = "server-app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+protocol = { path = "../protocol" }
+tokio = { version = "1", features = ["full"] }
+anyhow = { version = "1" }
+tracing = { version = "0.1.43" }
+tracing-subscriber = { version = "0.3.22" }

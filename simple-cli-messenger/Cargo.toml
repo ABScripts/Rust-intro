@@ -1,14 +1,6 @@
-[package]
-name = "simple-cli-messenger"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-tokio = { version = "1", features = ["full"] }
-bytes = { version = "1" }
-anyhow = { version = "1" }
-clap = { version = "4", features = ["derive"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1.0.145" }
-tracing = { version = "0.1.43" }
-tracing-subscriber = { version = "0.3.22" }
+[workspace]
+members = [
+    "crates/protocol",
+    "crates/server",
+    "crates/client"
+]
