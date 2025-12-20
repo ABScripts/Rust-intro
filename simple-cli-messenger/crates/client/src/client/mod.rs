@@ -31,49 +31,57 @@ impl Client {
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
-        let (rx, tx) = self.into_split();
-
-        let mut join_set = JoinSet::new();
-        join_set.spawn({
-            let mut client_writer_actor_handle = tx.clone();
-            async move {
-                loop {
-                    tokio::time::sleep(Duration::from_secs(5)).await;
-                    client_writer_actor_handle.send_keepalive().await;
-                }
+        // This seems to be the cleanest way of defining these tasks, based on the reqs:
+        // 1) Automatic return type deduction instead of explicitly specifying returned type:
+        //    #[allow(unreachable_code)]
+        //    Ok::<(), anyhow::Error>(())
+        // 2) Ability to name that logical piece
+        async fn send_keepalives(mut writer: ClientWriterActorHandle) -> anyhow::Result<()> {
+            loop {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                writer.send_keepalive().await?;
             }
-        });
-        join_set.spawn({
-            let mut client_writer_actor_handle = tx.clone();
-            async move {
+        }
+
+        async fn handle_input(mut writer: ClientWriterActorHandle) -> anyhow::Result<()> {
+            let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+
+            // With tokio's stdin and buf reader it would stuck, quoting their docs:
+            //  "For technical reasons, stdin is implemented by using an
+            //   ordinary blocking read on a separate thread, and it is impossible
+            //   to cancel that read. This can make shutdown of the runtime hang
+            //   until the user presses enter."
+            std::thread::spawn(move || -> anyhow::Result<()> {
                 loop {
                     print!("Type: ");
-                    std::io::stdout().flush()?; // to actually see the above printed line (avoid buffering)
+                    std::io::stdout().flush()?;
 
-                    let mut reader = BufReader::new(tokio::io::stdin());
-                    let mut message = Vec::new();
-                    match reader.read_until(b'\n', &mut message).await {
-                        Ok(_) => {
-                            client_writer_actor_handle
-                                .send_message(String::from_utf8(message)?)
-                                .await;
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to get input from user: {}", e);
-                            continue;
-                        }
-                    }
+                    let mut buffer = String::new();
+                    std::io::stdin().read_line(&mut buffer)?;
+                    tx.blocking_send(buffer)?;
                 }
-            }
-        });
-        join_set.spawn(rx.read_incoming());
+            });
 
-        join_set.join_all().await;
+            // With user input handled in a dedicated thread, tokio's runner wouldn't stuck
+            // This task would be aborted, the program will shut automatically killing the above thread
+            while let Some(message) = rx.recv().await {
+                writer.send_message(message).await?;
+            }
+
+            Ok(())
+        }
+
+        let mut join_set = JoinSet::new();
+        join_set.spawn(send_keepalives(self.writer.clone()));
+        join_set.spawn(handle_input(self.writer.clone()));
+        join_set.spawn(self.reader.read_incoming());
+
+        // 1) It should be fine to unwrap here as "None" will be returned only in case
+        // the join set is empty and here it is clearly not?
+        // 2) First "?"  - on error coming from the joining operation itself
+        //    Second "?" - on error reported from the task
+        join_set.join_next().await.unwrap()??;
 
         Ok(())
-    }
-
-    fn into_split(self) -> (ClientReader, ClientWriterActorHandle) {
-        (self.reader, self.writer)
     }
 }

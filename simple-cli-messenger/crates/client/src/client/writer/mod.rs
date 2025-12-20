@@ -26,9 +26,10 @@ impl ClientWriterActorHandle {
     pub fn new(writer: ClientWriter) -> Self {
         let (sender, receiver) = mpsc::channel(100);
 
-        let mut client_writer_actor = ClientWriterActor::new(receiver, writer);
-        tokio::spawn(async move {
-            client_writer_actor.run().await;
+        // This task would automatically end as soon as producers die
+        // Until there is someone who needs us, we should be running
+        tokio::spawn(async {
+            let _ = ClientWriterActor::new(receiver, writer).run().await;
         });
 
         ClientWriterActorHandle { sender }
