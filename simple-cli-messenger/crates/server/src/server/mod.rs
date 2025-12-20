@@ -3,7 +3,6 @@ mod client;
 use crate::server::client::Client;
 
 use protocol::client_message::ClientMessage;
-use protocol::network_message::NetworkMessage;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
@@ -82,9 +81,7 @@ impl Server {
 /////////////////////////////
 impl Server {
     async fn retrieve_client_username(&mut self, stream: &mut TcpStream) -> anyhow::Result<String> {
-        let msg_net = NetworkMessage::read(stream).await?;
-        let msg_cli = ClientMessage::from_json(msg_net.get_payload())?;
-
+        let msg_cli = ClientMessage::read(stream).await?;
         let ClientMessage::Connected(common) = msg_cli else {
             return Err(anyhow::anyhow!(
                 "Unexpected first message from the client: {:?}.",

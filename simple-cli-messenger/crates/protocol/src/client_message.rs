@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::network_message::NetworkMessage;
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ClientMessageCommon {
     pub username: String,
@@ -49,5 +51,21 @@ impl ClientMessage {
     pub fn from_json(data: &[u8]) -> std::io::Result<ClientMessage> {
         let cli_msg = serde_json::from_slice(data)?;
         return Ok(cli_msg);
+    }
+
+    pub async fn read<R: tokio::io::AsyncRead + Unpin>(read_sock: &mut R) -> anyhow::Result<Self> {
+        Ok(ClientMessage::from_json(
+            NetworkMessage::read(read_sock).await?.get_payload(),
+        )?)
+    }
+
+    pub async fn write(
+        self,
+        write_sock: &mut tokio::net::tcp::OwnedWriteHalf,
+    ) -> anyhow::Result<Self> {
+        NetworkMessage::new(self.to_json()?.as_bytes())
+            .write(write_sock)
+            .await?;
+        Ok(self)
     }
 }

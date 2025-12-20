@@ -1,5 +1,4 @@
 use protocol::client_message::ClientMessage;
-use protocol::network_message::NetworkMessage;
 
 use tokio::sync::mpsc;
 
@@ -26,24 +25,10 @@ impl ClientReader {
         tracing::info!("Started getting messages");
 
         loop {
-            match NetworkMessage::read(&mut self.rx_stream).await {
-                Ok(msg_net) => {
-                    tracing::info!("Parsing message");
-                    let msg_cli = ClientMessage::from_json(msg_net.get_payload())?;
-
-                    tracing::info!(
-                        "Received message from client {}: {:?}",
-                        self.username,
-                        msg_cli
-                    );
-
-                    if self.tx_to_message_distributor.send(msg_cli).await.is_err() {
-                        tracing::error!(
-                            "Failed to redistribute message from client {}",
-                            self.username
-                        );
-                        break;
-                    }
+            match ClientMessage::read(&mut self.rx_stream).await {
+                Ok(msg) => {
+                    tracing::info!("Received message from client {}: {:?}", self.username, msg);
+                    self.tx_to_message_distributor.send(msg).await?;
                 }
                 Err(e) => {
                     self.tx_to_message_distributor

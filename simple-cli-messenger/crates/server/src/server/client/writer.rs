@@ -1,5 +1,4 @@
 use protocol::client_message::ClientMessage;
-use protocol::network_message::NetworkMessage;
 
 use tokio::{io::AsyncWriteExt, sync::broadcast};
 
@@ -33,14 +32,12 @@ impl ClientWriter {
                 continue;
             }
 
-            let msg_json = msg.to_json()?;
-            tracing::debug!("Sending {msg_json}");
-
-            let msg_net = NetworkMessage::new(msg_json.as_bytes());
-            tracing::debug!("Serialized view: |{:?}|", msg_net.get_payload());
-
-            match self.tx_stream.write(&msg_net.get_payload()).await {
-                Ok(_) => tracing::info!("Sent message {} to client {}", msg_json, self.username),
+            match msg.write(&mut self.tx_stream).await {
+                Ok(msg) => tracing::info!(
+                    "Sent message {} to client {}",
+                    msg.to_json()?,
+                    self.username
+                ),
                 Err(e) => {
                     tracing::error!("Failed to send message to client {}: {}", self.username, e);
                     break;
