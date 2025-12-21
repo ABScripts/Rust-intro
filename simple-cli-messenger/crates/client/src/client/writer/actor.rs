@@ -1,6 +1,7 @@
 use crate::client::writer::ClientWriter;
 use crate::client::writer::message::ClientWriterActorMessage;
 use protocol::client_message::ClientMessage;
+use protocol::client_message::ClientMessageReceiver;
 
 use tokio::sync::mpsc;
 
@@ -27,9 +28,14 @@ impl ClientWriterActor {
 
         while let Some(actor_msg) = self.receiver.recv().await {
             let msg_cli = match actor_msg {
-                ClientWriterActorMessage::SendData(data) => {
-                    ClientMessage::data(self.writer.username.clone(), data)
-                }
+                ClientWriterActorMessage::SendData(data, to) => match to {
+                    ClientMessageReceiver::Broadcast => {
+                        ClientMessage::data(self.writer.username.clone(), data)
+                    }
+                    ClientMessageReceiver::Unicast(to) => {
+                        ClientMessage::data_private(self.writer.username.clone(), to, data)
+                    }
+                },
                 ClientWriterActorMessage::Keepalive() => {
                     ClientMessage::keepalive(self.writer.username.clone())
                 }

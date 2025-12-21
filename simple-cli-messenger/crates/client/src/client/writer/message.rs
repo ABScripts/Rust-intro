@@ -1,4 +1,6 @@
+use protocol::client_message::ClientMessageReceiver;
+
 pub enum ClientWriterActorMessage {
-    SendData(String),
+    SendData(String, ClientMessageReceiver),
     Keepalive(),
 }

@@ -5,6 +5,8 @@ use crate::client::reader::ClientReader;
 use crate::client::writer::ClientWriter;
 use crate::client::writer::ClientWriterActorHandle;
 
+use protocol::client_message::ClientMessage;
+
 use std::{io::Write, time::Duration};
 use tokio::{
     io::{self},
@@ -27,6 +29,10 @@ impl Client {
         let reader = ClientReader::new(rx);
 
         Ok(Self { writer, reader })
+    }
+
+    pub async fn send_private(self: &mut Self, to: String, msg: String) {
+        let _ = self.writer.send_private_message(to, msg).await;
     }
 
     pub async fn run(self) -> anyhow::Result<()> {

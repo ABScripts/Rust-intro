@@ -1,6 +1,9 @@
-use protocol::client_message::ClientMessage;
+use std::str::FromStr;
+
+use protocol::client_message::{ClientMessage, ClientMessageReceiver};
 
 use tokio::net::tcp::OwnedReadHalf;
+use tracing_subscriber::fmt::format;
 
 pub struct ClientReader {
     rx: OwnedReadHalf,
@@ -17,8 +20,14 @@ impl ClientReader {
                 ClientMessage::Disconnected(common) => {
                     tracing::info!("[{}] has disconnected...", common.username);
                 }
-                ClientMessage::Data(common, payload) => {
-                    tracing::info!("[{}]: {}", common.username, payload);
+                ClientMessage::Data(common, dest, payload) => {
+                    let mut info = format!("[{}]", common.username);
+                    if let ClientMessageReceiver::Unicast(_) = dest {
+                        info += " 🔒";
+                    }
+                    info += &format!("{}", payload);
+
+                    tracing::info!("{}", info);
                 }
                 ClientMessage::Connected(common) => {
                     tracing::info!("[{}] has connected...", common.username);

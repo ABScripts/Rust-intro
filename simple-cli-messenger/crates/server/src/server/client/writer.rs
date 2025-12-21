@@ -1,4 +1,4 @@
-use protocol::client_message::ClientMessage;
+use protocol::client_message::{ClientMessage, ClientMessageReceiver};
 
 use tokio::sync::broadcast;
 
@@ -27,6 +27,18 @@ impl ClientWriter {
                 tracing::trace!(
                     "Ignore message destined to {}, we are: {}",
                     msg.get_username(),
+                    self.username
+                );
+                continue;
+            }
+
+            if let ClientMessage::Data(_, receiver, _) = &msg
+                && let ClientMessageReceiver::Unicast(receiver) = receiver
+                && *receiver != self.username
+            {
+                tracing::trace!(
+                    "Ignore private message destined to another user {}, we are: {}",
+                    *receiver,
                     self.username
                 );
                 continue;

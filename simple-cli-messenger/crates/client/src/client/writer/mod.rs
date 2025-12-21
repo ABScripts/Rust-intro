@@ -3,6 +3,7 @@ mod message;
 
 use crate::client::writer::actor::ClientWriterActor;
 use crate::client::writer::message::ClientWriterActorMessage;
+use protocol::client_message::ClientMessageReceiver;
 
 use tokio::{net::tcp::OwnedWriteHalf, sync::mpsc};
 
@@ -38,7 +39,20 @@ impl ClientWriterActorHandle {
     pub async fn send_message(&mut self, data: String) -> anyhow::Result<()> {
         Ok(self
             .sender
-            .send(ClientWriterActorMessage::SendData(data))
+            .send(ClientWriterActorMessage::SendData(
+                data,
+                ClientMessageReceiver::Broadcast,
+            ))
+            .await?)
+    }
+
+    pub async fn send_private_message(&mut self, to: String, data: String) -> anyhow::Result<()> {
+        Ok(self
+            .sender
+            .send(ClientWriterActorMessage::SendData(
+                data,
+                ClientMessageReceiver::Unicast(to),
+            ))
             .await?)
     }
 

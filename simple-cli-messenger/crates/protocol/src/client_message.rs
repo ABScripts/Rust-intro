@@ -7,12 +7,18 @@ pub struct ClientMessageCommon {
     pub username: String,
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum ClientMessageReceiver {
+    Unicast(String),
+    Broadcast,
+}
+
 /// In-house view on the client message
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ClientMessage {
     Disconnected(ClientMessageCommon),
     Connected(ClientMessageCommon),
-    Data(ClientMessageCommon, String),
+    Data(ClientMessageCommon, ClientMessageReceiver, String),
     KeepAlive(ClientMessageCommon),
 }
 
@@ -27,7 +33,19 @@ impl ClientMessage {
     }
 
     pub fn data(username: String, data: String) -> Self {
-        Self::Data(ClientMessageCommon { username }, data)
+        Self::Data(
+            ClientMessageCommon { username },
+            ClientMessageReceiver::Broadcast,
+            data,
+        )
+    }
+
+    pub fn data_private(from: String, to: String, data: String) -> Self {
+        Self::Data(
+            ClientMessageCommon { username: from },
+            ClientMessageReceiver::Unicast(to),
+            data,
+        )
     }
 
     pub fn keepalive(username: String) -> Self {
