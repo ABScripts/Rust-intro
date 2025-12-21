@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Admin Panel</title>
+    </head>
+    <body>
+        <h1>Admin Panel</h1>
+
+        <h2>List Users</h2>
+        <button onclick="listUsers()">Get Users</button>
+        <pre id="users"></pre>
+
+        <h2>Delete User</h2>
+        <input type="number" id="deleteUserId" placeholder="User ID" />
+        <button onclick="deleteUser()">Delete</button>
+        <pre id="deleteResult"></pre>
+
+        <h2>Send Message</h2>
+        <input type="number" id="messageUserId" placeholder="User ID" />
+        <input type="text" id="messageText" placeholder="Message" />
+        <button onclick="sendMessage()">Send</button>
+        <pre id="messageResult"></pre>
+
+        <script>
+            const API_URL = "http://localhost:3000";
+
+            async function listUsers() {
+                const response = await fetch(`${API_URL}/users`);
+                const data = await response.json();
+                document.getElementById("users").textContent = JSON.stringify(
+                    data,
+                    null,
+                    2,
+                );
+            }
+
+            async function deleteUser() {
+                const userId = document.getElementById("deleteUserId").value;
+                const response = await fetch(`${API_URL}/users/${userId}`, {
+                    method: "DELETE",
+                });
+                const data = await response.json();
+                document.getElementById("deleteResult").textContent =
+                    JSON.stringify(data, null, 2);
+            }
+
+            async function sendMessage() {
+                const userId = document.getElementById("messageUserId").value;
+                const message = document.getElementById("messageText").value;
+                const response = await fetch(
+                    `${API_URL}/users/${userId}?msg=${encodeURIComponent(message)}`,
+                    {
+                        method: "POST",
+                    },
+                );
+                const data = await response.json();
+                document.getElementById("messageResult").textContent =
+                    JSON.stringify(data, null, 2);
+            }
+        </script>
+    </body>
+</html>
