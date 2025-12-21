@@ -7,6 +7,7 @@ use crate::server::client::timeout::Timeout;
 use crate::server::client::writer::ClientWriter;
 
 use ::tokio::sync::Mutex;
+use anyhow::Context;
 use protocol::client_message::ClientMessage;
 use std::{sync::Arc, time::Duration};
 use tokio::{
@@ -16,7 +17,7 @@ use tokio::{
 };
 
 pub struct Client {
-    username: String,
+    pub username: String,
     reader: Arc<Mutex<ClientReader>>,
     writer: Arc<Mutex<ClientWriter>>,
 }
@@ -48,36 +49,30 @@ impl Client {
         }
     }
 
-    pub async fn run(&self) {
-        let handle_incoming_messages = Timeout::new(Duration::from_secs(6), {
-            let reader = self.reader.clone();
-            async move {
-                match reader.lock().await.handle_incoming().await {
-                    Ok(_) => {}
-                    Err(e) => {
-                        tracing::error!("Handle incoming task has failed with error: {e}")
-                    }
-                }
-            }
-        });
+    pub async fn run(&self) -> anyhow::Result<()> {
+        async fn handle_incoming_messages(reader: Arc<Mutex<ClientReader>>) -> anyhow::Result<()> {
+            Ok(Timeout::new(
+                Duration::from_secs(6),
+                reader.lock().await.handle_incoming(),
+            )
+            .await
+            .context("handle_incoming_messages exited")?)
+        }
 
-        let handle_outgoing_messages = {
-            let writer = self.writer.clone();
-            async move {
-                match writer.lock().await.handle_outgoing().await {
-                    Ok(_) => {}
-                    Err(e) => tracing::error!("Handle outgoing task has failed with error: {e}"),
-                }
-            }
-        };
+        async fn handle_outgoing_messages(writer: Arc<Mutex<ClientWriter>>) -> anyhow::Result<()> {
+            Ok(writer
+                .lock()
+                .await
+                .handle_outgoing()
+                .await
+                .context("handle_outgoing_messages exited")?)
+        }
 
         let mut client_join_set = JoinSet::new();
-        client_join_set.spawn(handle_incoming_messages);
-        client_join_set.spawn(handle_outgoing_messages);
-        client_join_set.join_next().await;
+        client_join_set.spawn(handle_incoming_messages(self.reader.clone()));
+        client_join_set.spawn(handle_outgoing_messages(self.writer.clone()));
 
-        tracing::warn!("Client {} has died", self.username);
-        // if either of the workers dies, we kill all the tasks
-        // client object still will be alive though (cleanup to be added)
+        // "unwrap" should be fine here as join set is guaranteed to be non-empty
+        Ok(client_join_set.join_next().await.unwrap()??)
     }
 }

@@ -4,7 +4,7 @@ use tokio::time::{Sleep, sleep};
 
 pub struct Timeout<F>
 where
-    F: Future<Output = ()>,
+    F: Future<Output = anyhow::Result<()>>,
 {
     duration: Duration,
     sleep_fut: Pin<Box<Sleep>>,
@@ -13,7 +13,7 @@ where
 
 impl<F> Timeout<F>
 where
-    F: Future<Output = ()>,
+    F: Future<Output = anyhow::Result<()>>,
 {
     pub fn new(duration: Duration, task: F) -> Self {
         Self {
@@ -26,9 +26,9 @@ where
 
 impl<F: Future> Future for Timeout<F>
 where
-    F: Future<Output = ()>,
+    F: Future<Output = anyhow::Result<()>>,
 {
-    type Output = ();
+    type Output = anyhow::Result<()>;
 
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
@@ -39,7 +39,7 @@ where
                 "Timeout! Task was inactive for too long: {:?}",
                 self.duration
             );
-            return std::task::Poll::Ready(());
+            return std::task::Poll::Ready(Ok(()));
         }
 
         tracing::debug!("Received update on task, restart timer");

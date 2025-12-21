@@ -6,7 +6,7 @@ use protocol::client_message::ClientMessage;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{broadcast, mpsc},
+    sync::{Mutex, broadcast, mpsc},
     task::{self},
 };
 
@@ -14,7 +14,7 @@ pub struct Server {
     listener: TcpListener,
     tx_to_message_distributor: mpsc::Sender<ClientMessage>,
     tx_to_clients: broadcast::Sender<ClientMessage>,
-    connected_clients: HashMap<String, Arc<Client>>,
+    connected_clients: Arc<Mutex<HashMap<String, Arc<Client>>>>,
 }
 
 impl Server {
@@ -32,7 +32,7 @@ impl Server {
             listener,
             tx_to_message_distributor: tx_dist,
             tx_to_clients: tx_broad,
-            connected_clients: HashMap::new(),
+            connected_clients: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -49,29 +49,7 @@ impl Server {
             };
 
             tracing::info!("[{username}] connected from {socket_addr}");
-
-            self.tx_to_message_distributor
-                .send(ClientMessage::connected(username.clone()))
-                .await?;
-
-            // TODO: Prepare thoroughout explanation, what is going on here
-            // Think, If I can simplify this
-            // Maybe this implementation gives me abilities which I don't need as for now
-            let client = Arc::new(Client::new(
-                username.clone(),
-                stream,
-                self.tx_to_message_distributor.clone(),
-                self.tx_to_clients.subscribe(),
-            ));
-            // TODO: can I write shorter here?
-            tokio::spawn({
-                let client = client.clone();
-                async move {
-                    client.run().await;
-                }
-            });
-
-            self.connected_clients.insert(username, client.clone());
+            self.handle_client_connection(username, stream).await?;
         }
     }
 }
@@ -101,5 +79,46 @@ impl Server {
                 tracing::error!("Failed to broadcast message - no receivers");
             }
         }
+    }
+
+    async fn handle_client_connection(
+        self: &Self,
+        username: String,
+        stream: TcpStream,
+    ) -> anyhow::Result<()> {
+        self.tx_to_message_distributor
+            .send(ClientMessage::connected(username.clone()))
+            .await?;
+
+        let client = Arc::new(Client::new(
+            username.clone(),
+            stream,
+            self.tx_to_message_distributor.clone(),
+            self.tx_to_clients.subscribe(),
+        ));
+        self.connected_clients
+            .lock()
+            .await
+            .insert(username, client.clone());
+
+        Ok(self.run_client_worker(client))
+    }
+
+    fn run_client_worker(self: &Self, client: Arc<Client>) {
+        let tx_to_message_distributor = self.tx_to_message_distributor.clone();
+        let connected_clients = self.connected_clients.clone();
+
+        tokio::spawn(async move {
+            match client.run().await {
+                Err(e) => tracing::error!("{e}"),
+                _ => {}
+            };
+
+            let _ = tx_to_message_distributor
+                .send(ClientMessage::disconnected(client.username.clone()))
+                .await;
+
+            connected_clients.lock().await.remove(&client.username);
+        });
     }
 }
