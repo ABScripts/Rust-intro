@@ -1,6 +1,6 @@
 use protocol::client_message::ClientMessage;
 
-use tokio::{io::AsyncWriteExt, sync::broadcast};
+use tokio::sync::broadcast;
 
 pub struct ClientWriter {
     username: String,

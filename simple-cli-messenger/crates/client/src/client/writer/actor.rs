@@ -1,9 +1,8 @@
 use crate::client::writer::ClientWriter;
 use crate::client::writer::message::ClientWriterActorMessage;
 use protocol::client_message::ClientMessage;
-use protocol::network_message::NetworkMessage;
 
-use tokio::{io::AsyncWriteExt, sync::mpsc};
+use tokio::sync::mpsc;
 
 pub struct ClientWriterActor {
     receiver: mpsc::Receiver<ClientWriterActorMessage>,

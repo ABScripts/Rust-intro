@@ -6,9 +6,8 @@ use crate::client::writer::ClientWriter;
 use crate::client::writer::ClientWriterActorHandle;
 
 use std::{io::Write, time::Duration};
-use tokio::io::BufReader;
 use tokio::{
-    io::{self, AsyncBufReadExt},
+    io::{self},
     net::TcpSocket,
     task::JoinSet,
 };
