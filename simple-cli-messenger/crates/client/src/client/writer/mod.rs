@@ -32,7 +32,7 @@ impl ClientWriterActorHandle {
             let _ = ClientWriterActor::new(receiver, writer).run().await;
         });
 
-        ClientWriterActorHandle { sender }
+        Self { sender }
     }
 
     pub async fn send_message(&mut self, data: String) -> anyhow::Result<()> {

@@ -18,7 +18,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn connect(addr: std::net::SocketAddr, username: String) -> io::Result<Client> {
+    pub async fn connect(addr: std::net::SocketAddr, username: String) -> io::Result<Self> {
         let sock = TcpSocket::new_v4()?;
         let stream = sock.connect(addr).await?;
 
@@ -26,7 +26,7 @@ impl Client {
         let writer = ClientWriterActorHandle::new(ClientWriter::new(username, tx));
         let reader = ClientReader::new(rx);
 
-        Ok(Client { writer, reader })
+        Ok(Self { writer, reader })
     }
 
     pub async fn run(self) -> anyhow::Result<()> {

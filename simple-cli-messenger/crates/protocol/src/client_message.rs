@@ -19,27 +19,27 @@ pub enum ClientMessage {
 // TODO: I need to figure out if there is a better way to implement this
 impl ClientMessage {
     pub fn disconnected(username: String) -> Self {
-        ClientMessage::Disconnected(ClientMessageCommon { username })
+        Self::Disconnected(ClientMessageCommon { username })
     }
 
     pub fn connected(username: String) -> Self {
-        ClientMessage::Connected(ClientMessageCommon { username })
+        Self::Connected(ClientMessageCommon { username })
     }
 
     pub fn data(username: String, data: String) -> Self {
-        ClientMessage::Data(ClientMessageCommon { username }, data)
+        Self::Data(ClientMessageCommon { username }, data)
     }
 
     pub fn keepalive(username: String) -> Self {
-        ClientMessage::KeepAlive(ClientMessageCommon { username })
+        Self::KeepAlive(ClientMessageCommon { username })
     }
 
     pub fn get_username(&self) -> &String {
         match self {
-            ClientMessage::Disconnected(common)
-            | ClientMessage::Connected(common)
-            | ClientMessage::KeepAlive(common)
-            | ClientMessage::Data(common, ..) => &common.username,
+            Self::Disconnected(common)
+            | Self::Connected(common)
+            | Self::KeepAlive(common)
+            | Self::Data(common, ..) => &common.username,
         }
     }
 
@@ -48,13 +48,13 @@ impl ClientMessage {
         Ok(msg_json)
     }
 
-    pub fn from_json(data: &[u8]) -> std::io::Result<ClientMessage> {
+    pub fn from_json(data: &[u8]) -> std::io::Result<Self> {
         let cli_msg = serde_json::from_slice(data)?;
         Ok(cli_msg)
     }
 
     pub async fn read<R: tokio::io::AsyncRead + Unpin>(read_sock: &mut R) -> anyhow::Result<Self> {
-        Ok(ClientMessage::from_json(
+        Ok(Self::from_json(
             NetworkMessage::read(read_sock).await?.get_payload(),
         )?)
     }

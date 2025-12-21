@@ -11,26 +11,26 @@ pub struct NetworkMessage {
 
 impl NetworkMessage {
     pub fn new(payload: &[u8]) -> Self {
-        let mut bytes = BytesMut::new();
-        bytes.put_u64(payload.len() as u64);
-        bytes.put_slice(payload);
+        let mut msg = BytesMut::new();
+        msg.put_u64(payload.len() as u64);
+        msg.put_slice(payload);
 
-        NetworkMessage { payload: bytes }
+        Self { payload: msg }
     }
 
     pub async fn read<R: tokio::io::AsyncRead + Unpin>(read_sock: &mut R) -> io::Result<Self> {
-        let mut msg_net = NetworkMessage::default();
-
         let msg_len = read_sock.read_u64().await?;
+
+        let mut msg = BytesMut::new();
         let mut read = 0;
-        let mut buf: [u8; 512] = [0; 512];
+        let mut buf = [0; 512];
         while read < msg_len {
             let buf_slice = &mut buf[..(msg_len - read) as usize];
             read += read_sock.read_exact(buf_slice).await? as u64;
-            msg_net.payload.extend_from_slice(buf_slice);
+            msg.extend_from_slice(buf_slice);
         }
 
-        Ok(msg_net)
+        Ok(Self { payload: msg })
     }
 
     pub async fn write(
