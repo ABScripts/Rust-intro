@@ -48,6 +48,6 @@ where
             .as_mut()
             .reset(tokio::time::Instant::now() + duration);
 
-        return self.task.as_mut().poll(cx);
+        self.task.as_mut().poll(cx)
     }
 }

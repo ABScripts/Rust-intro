@@ -73,7 +73,7 @@ impl Client {
         let mut join_set = JoinSet::new();
         join_set.spawn(send_keepalives(self.writer.clone()));
         join_set.spawn(handle_input(self.writer.clone()));
-        join_set.spawn(self.reader.read_incoming());
+        join_set.spawn(self.reader.read_incoming_messages());
 
         // 1) It should be fine to unwrap here as "None" will be returned only in case
         // the join set is empty and here it is clearly not?

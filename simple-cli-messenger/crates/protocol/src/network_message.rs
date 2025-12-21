@@ -30,18 +30,17 @@ impl NetworkMessage {
             msg_net.payload.extend_from_slice(buf_slice);
         }
 
-        return Ok(msg_net);
+        Ok(msg_net)
     }
 
     pub async fn write(
         &mut self,
         write_sock: &mut tokio::net::tcp::OwnedWriteHalf,
     ) -> anyhow::Result<()> {
-        write_sock.write_all(self.payload.iter().as_slice()).await?;
-        return Ok(());
+        Ok(write_sock.write_all(self.payload.iter().as_slice()).await?)
     }
 
     pub fn get_payload(&self) -> &[u8] {
-        return &self.payload[..];
+        &self.payload[..]
     }
 }

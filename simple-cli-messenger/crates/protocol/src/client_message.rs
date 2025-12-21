@@ -19,19 +19,19 @@ pub enum ClientMessage {
 // TODO: I need to figure out if there is a better way to implement this
 impl ClientMessage {
     pub fn disconnected(username: String) -> Self {
-        return ClientMessage::Disconnected(ClientMessageCommon { username });
+        ClientMessage::Disconnected(ClientMessageCommon { username })
     }
 
     pub fn connected(username: String) -> Self {
-        return ClientMessage::Connected(ClientMessageCommon { username });
+        ClientMessage::Connected(ClientMessageCommon { username })
     }
 
     pub fn data(username: String, data: String) -> Self {
-        return ClientMessage::Data(ClientMessageCommon { username }, data);
+        ClientMessage::Data(ClientMessageCommon { username }, data)
     }
 
     pub fn keepalive(username: String) -> Self {
-        return ClientMessage::KeepAlive(ClientMessageCommon { username });
+        ClientMessage::KeepAlive(ClientMessageCommon { username })
     }
 
     pub fn get_username(&self) -> &String {
@@ -45,12 +45,12 @@ impl ClientMessage {
 
     pub fn to_json(&self) -> std::io::Result<String> {
         let msg_json = serde_json::to_string(&self)?;
-        return Ok(msg_json);
+        Ok(msg_json)
     }
 
     pub fn from_json(data: &[u8]) -> std::io::Result<ClientMessage> {
         let cli_msg = serde_json::from_slice(data)?;
-        return Ok(cli_msg);
+        Ok(cli_msg)
     }
 
     pub async fn read<R: tokio::io::AsyncRead + Unpin>(read_sock: &mut R) -> anyhow::Result<Self> {

@@ -11,7 +11,7 @@ impl ClientReader {
         Self { rx }
     }
 
-    pub async fn read_incoming(mut self) -> anyhow::Result<()> {
+    pub async fn read_incoming_messages(mut self) -> anyhow::Result<()> {
         loop {
             match ClientMessage::read(&mut self.rx).await? {
                 ClientMessage::Disconnected(common) => {

@@ -89,7 +89,7 @@ impl Server {
             ));
         };
 
-        return Ok(common.username);
+        Ok(common.username)
     }
 
     async fn run_message_distributor(
