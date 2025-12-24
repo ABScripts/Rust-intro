@@ -6,7 +6,7 @@ use protocol::client_message::ClientMessage;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{Mutex, RwLock, broadcast, mpsc},
+    sync::{RwLock, broadcast, mpsc},
     task::{self},
 };
 

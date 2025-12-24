@@ -1,6 +1,6 @@
 use super::ServerState;
 use protocol::client_message::ClientMessage;
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use tokio::sync::mpsc;
 pub struct ClientReader {

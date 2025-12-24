@@ -1,14 +1,14 @@
 use axum::response::Html;
 use axum::response::IntoResponse;
 use axum::{
-    Json, Router,
+    Router,
     extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get, post},
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::net::SocketAddr;
-use tokio::sync::{Mutex, broadcast};
+use tokio::sync::broadcast;
 use tokio::task::JoinSet;
 
 use client::client::client_admin::ClientAdmin;

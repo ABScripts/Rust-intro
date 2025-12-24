@@ -1,6 +1,6 @@
 use protocol::client_message::{ClientMessage, ClientMessageReceiver};
 
-use tokio::{sync::broadcast, time::error::Error};
+use tokio::sync::broadcast;
 
 pub struct ClientWriter {
     username: String,

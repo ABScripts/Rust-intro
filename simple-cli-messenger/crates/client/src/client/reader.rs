@@ -1,9 +1,7 @@
-use std::str::FromStr;
 
 use protocol::client_message::{ClientMessage, ClientMessageReceiver};
 
 use tokio::net::tcp::OwnedReadHalf;
-use tracing_subscriber::fmt::format;
 
 pub struct ClientReader {
     rx: OwnedReadHalf,
