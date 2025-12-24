@@ -6,20 +6,6 @@
     <body>
         <h1>Admin Panel</h1>
 
-        <h2>List Users</h2>
-        <button onclick="getUsers()">Get Users</button>
-
-        <h2>Delete User</h2>
-        <input type="string" id="deleteUserId" placeholder="Username" />
-        <button onclick="deleteUser()">Delete</button>
-        <pre id="deleteResult"></pre>
-
-        <h2>Send Message</h2>
-        <input type="string" id="messageUserId" placeholder="Username" />
-        <input type="text" id="messageText" placeholder="Message" />
-        <button onclick="sendMessage()">Send</button>
-        <pre id="messageResult"></pre>
-
         <h2>Events</h2>
         <div
             id="events"
@@ -31,6 +17,19 @@
                 background: #f5f5f5;
             "
         ></div>
+        <br></br>
+
+        <button onclick="getUsers()">Get Users</button>
+        <br></br>
+
+        <input type="string" id="deleteUserId" placeholder="Username" />
+        <button onclick="deleteUser()">Kick</button>
+        <pre id="deleteResult"></pre>
+
+        <input type="string" id="messageUserId" placeholder="Username" />
+        <input type="text" id="messageText" placeholder="Message" />
+        <button onclick="sendMessage()">Send</button>
+        <pre id="messageResult"></pre>
 
         <script>
             const API_URL = "http://localhost:3000";
