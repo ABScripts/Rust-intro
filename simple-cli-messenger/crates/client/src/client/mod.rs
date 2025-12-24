@@ -7,7 +7,6 @@ use crate::client::reader::ClientReader;
 use crate::client::writer::ClientWriter;
 use crate::client::writer::ClientWriterActorHandle;
 
-
 use std::{io::Write, time::Duration};
 use tokio::{
     io::{self},
@@ -56,7 +55,7 @@ impl Client {
     // 2) Ability to name that logical piece
     async fn send_keepalives(mut writer: ClientWriterActorHandle) -> anyhow::Result<()> {
         loop {
-            tokio::time::sleep(Duration::from_secs(120)).await;
+            tokio::time::sleep(Duration::from_secs(110)).await;
             writer.send_keepalive().await?;
         }
     }
