@@ -37,9 +37,15 @@ async fn get_users(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 // DELETE /users/{id} - disconnect specific user
-async fn kick_user(State(state): State<AppState>, Path(user_id): Path<String>) {
-    println!("DELETE /users/{} - kicking user", user_id);
-    todo!();
+async fn kick_user(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+) -> impl IntoResponse {
+    println!("DELETE /users/{} - kicking user", username);
+    match state.write_to_server.kick_user(username).await {
+        Err(e) => return (StatusCode::SERVICE_UNAVAILABLE, e.to_string()),
+        Ok(msg) => return (StatusCode::OK, format!("Sent {:?}", msg)),
+    }
 }
 
 // POST /users/{id}?msg=text - send message to specific user

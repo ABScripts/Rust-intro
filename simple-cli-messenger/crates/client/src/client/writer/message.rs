@@ -4,4 +4,5 @@ pub enum ClientWriterActorMessage {
     SendData(String, ClientMessageReceiver),
     Keepalive(),
     GetUsers(),
+    KickUser(String),
 }

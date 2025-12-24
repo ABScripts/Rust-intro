@@ -1,12 +1,18 @@
 use protocol::client_message::{ClientMessage, ClientMessageReceiver};
 
-use tokio::sync::broadcast;
+use tokio::{sync::broadcast, time::error::Error};
 
 pub struct ClientWriter {
     username: String,
     tx_stream: tokio::net::tcp::OwnedWriteHalf,
     rx_from_message_distributor: broadcast::Receiver<ClientMessage>,
     from_reader: tokio::sync::mpsc::Receiver<ClientMessage>,
+}
+
+enum MessageHandlingResult {
+    Message(ClientMessage),
+    IgnoreForeignMessage,
+    ReceivedKick,
 }
 
 impl ClientWriter {
@@ -27,7 +33,7 @@ impl ClientWriter {
     async fn handle_broadcast_message(
         &mut self,
         msg: ClientMessage,
-    ) -> anyhow::Result<Option<ClientMessage>> {
+    ) -> anyhow::Result<MessageHandlingResult> {
         if let Some(from_username) = msg.get_username()
             && *from_username == self.username
         {
@@ -36,7 +42,7 @@ impl ClientWriter {
                 *from_username,
                 self.username
             );
-            return Ok(None);
+            return Ok(MessageHandlingResult::IgnoreForeignMessage);
         }
 
         if let ClientMessage::Data(_, to_username, _) = &msg
@@ -48,7 +54,14 @@ impl ClientWriter {
                 *to_username,
                 self.username
             );
-            return Ok(None);
+            return Ok(MessageHandlingResult::IgnoreForeignMessage);
+        }
+
+        if let ClientMessage::Kick(common, who) = &msg
+            && *who == self.username
+        {
+            tracing::warn!("{} kicked us", common.username);
+            return Ok(MessageHandlingResult::ReceivedKick);
         }
 
         let msg = msg.write(&mut self.tx_stream).await?;
@@ -58,37 +71,44 @@ impl ClientWriter {
             self.username
         );
 
-        Ok(Some(msg))
+        Ok(MessageHandlingResult::Message(msg))
     }
 
-    pub async fn handle_direct_message(
+    async fn handle_direct_message(
         &mut self,
         msg: ClientMessage,
-    ) -> anyhow::Result<ClientMessage> {
-        Ok(msg.write(&mut self.tx_stream).await?)
+    ) -> anyhow::Result<MessageHandlingResult> {
+        Ok(MessageHandlingResult::Message(
+            msg.write(&mut self.tx_stream).await?,
+        ))
     }
 
     pub async fn handle_outgoing(&mut self) -> anyhow::Result<()> {
         loop {
             let res = tokio::select! {
                 Ok(msg) = self.rx_from_message_distributor.recv() => {
-                    match self.handle_broadcast_message(msg).await {
-                        Ok(None) => continue,     // message wasn't destined to us
-                        Ok(Some(msg)) => Ok(msg),
-                        Err(e) => Err(e)
-                    }
+                    self.handle_broadcast_message(msg).await
                 },
                 Some(msg) = self.from_reader.recv() => {
                     self.handle_direct_message(msg).await
                 },
             };
 
-            match res {
+            let res = match res {
                 Err(e) => {
                     tracing::error!("Failed to send message to client {}: {}", self.username, e);
                     return Err(e);
                 }
-                Ok(msg) => {
+                Ok(res) => res,
+            };
+
+            match res {
+                MessageHandlingResult::IgnoreForeignMessage => {}
+                MessageHandlingResult::ReceivedKick => {
+                    // wrap up this task && make the client shutdown
+                    return Ok(());
+                }
+                MessageHandlingResult::Message(msg) => {
                     tracing::info!(
                         "Sent message {} to client {}",
                         msg.to_json()?,

@@ -23,6 +23,8 @@ pub enum ClientMessage {
 
     GetUsers(),
     Users(String),
+
+    Kick(ClientMessageCommon, String),
 }
 
 // TODO: I need to figure out if there is a better way to implement this
@@ -51,6 +53,10 @@ impl ClientMessage {
         )
     }
 
+    pub fn kick_user(username: String, who: String) -> Self {
+        Self::Kick(ClientMessageCommon { username }, who)
+    }
+
     pub fn keepalive(username: String) -> Self {
         Self::KeepAlive(ClientMessageCommon { username })
     }
@@ -60,7 +66,8 @@ impl ClientMessage {
             Self::Disconnected(common)
             | Self::Connected(common)
             | Self::KeepAlive(common)
-            | Self::Data(common, ..) => Some(&common.username),
+            | Self::Data(common, ..)
+            | Self::Kick(common, ..) => Some(&common.username),
             _ => None,
         }
     }

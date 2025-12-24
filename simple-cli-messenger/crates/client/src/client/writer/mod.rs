@@ -63,6 +63,13 @@ impl ClientWriterActorHandle {
             .await?)
     }
 
+    pub async fn kick_user(&self, username: String) -> anyhow::Result<()> {
+        Ok(self
+            .sender
+            .send(ClientWriterActorMessage::KickUser(username))
+            .await?)
+    }
+
     pub async fn send_keepalive(&mut self) -> anyhow::Result<()> {
         Ok(self
             .sender
