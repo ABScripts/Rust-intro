@@ -57,7 +57,7 @@ impl Client {
     // 2) Ability to name that logical piece
     async fn send_keepalives(mut writer: ClientWriterActorHandle) -> anyhow::Result<()> {
         loop {
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            tokio::time::sleep(Duration::from_secs(120)).await;
             writer.send_keepalive().await?;
         }
     }
