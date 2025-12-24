@@ -1,5 +1,7 @@
 mod reader;
-mod writer;
+// nasty workaround
+pub mod client_admin;
+pub mod writer;
 
 use crate::client::reader::ClientReader;
 use crate::client::writer::ClientWriter;

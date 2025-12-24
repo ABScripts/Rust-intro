@@ -14,6 +14,17 @@ impl ClientReader {
         Self { rx }
     }
 
+    // Specifically added to support message forwarding need for the admin panel user
+    pub async fn forward_messages(
+        mut self,
+        tx_to_external: tokio::sync::mpsc::Sender<ClientMessage>,
+    ) -> anyhow::Result<()> {
+        loop {
+            let msg = ClientMessage::read(&mut self.rx).await?;
+            tx_to_external.send(msg).await?;
+        }
+    }
+
     pub async fn read_incoming_messages(mut self) -> anyhow::Result<()> {
         loop {
             match ClientMessage::read(&mut self.rx).await? {
