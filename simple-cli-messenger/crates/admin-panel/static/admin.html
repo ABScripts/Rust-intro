@@ -21,6 +21,9 @@
         <button onclick="sendMessage()">Send</button>
         <pre id="messageResult"></pre>
 
+        <h2>Events</h2>
+        <div id="events" style="border: 1px solid black; padding: 10px; height: 200px; overflow-y: auto; background: #f5f5f5;"></div>
+
         <script>
             const API_URL = "http://localhost:3000";
 
@@ -55,8 +58,27 @@
                 );
                 const data = await response.json();
                 document.getElementById("messageResult").textContent =
-                    JSON.stringify(data, null, 2);
+                    await response.text();
             }
+
+            function handleEvent(msg) {
+                const now = new Date().toLocaleTimeString();
+                const eventsDiv = document.getElementById("events");
+                const line = document.createElement("div");
+                line.textContent = `[${now}] ${msg}`;
+                eventsDiv.appendChild(line);
+                eventsDiv.scrollTop = eventsDiv.scrollHeight;
+            }
+
+            const es = new EventSource("/api/events");
+
+            es.onmessage = (e) => {
+                handleEvent(e.data);
+            };
+
+            es.onerror = () => {
+                console.log("SSE disconnected, browser will retry");
+            };
         </script>
     </body>
 </html>

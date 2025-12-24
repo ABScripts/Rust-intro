@@ -6,9 +6,10 @@ edition = "2024"
 [dependencies]
 client = { path = "../client/", package = "client-app" }
 protocol = { path = "../protocol/" }
-axum = "0.7"
+axum = { version = "0.7", features = ["macros"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 anyhow = "1"
 tracing = { version = "0.1.43" }
 tracing-subscriber = { version = "0.3.22" }
+async-stream = "0.3"
