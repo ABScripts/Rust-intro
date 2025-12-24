@@ -39,6 +39,7 @@ impl ClientWriterActor {
                 ClientWriterActorMessage::Keepalive() => {
                     ClientMessage::keepalive(self.writer.username.clone())
                 }
+                ClientWriterActorMessage::GetUsers() => ClientMessage::GetUsers(),
             }
             .write(&mut self.writer.tx)
             .await?;

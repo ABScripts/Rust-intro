@@ -20,6 +20,9 @@ pub enum ClientMessage {
     Connected(ClientMessageCommon),
     Data(ClientMessageCommon, ClientMessageReceiver, String),
     KeepAlive(ClientMessageCommon),
+
+    GetUsers(),
+    Users(String),
 }
 
 // TODO: I need to figure out if there is a better way to implement this
@@ -52,12 +55,13 @@ impl ClientMessage {
         Self::KeepAlive(ClientMessageCommon { username })
     }
 
-    pub fn get_username(&self) -> &String {
+    pub fn get_username(&self) -> Option<&String> {
         match self {
             Self::Disconnected(common)
             | Self::Connected(common)
             | Self::KeepAlive(common)
-            | Self::Data(common, ..) => &common.username,
+            | Self::Data(common, ..) => Some(&common.username),
+            _ => None,
         }
     }
 

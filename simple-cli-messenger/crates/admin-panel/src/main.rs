@@ -30,9 +30,12 @@ pub struct SendMessageQuery {
 }
 
 // GET /users - returns map of "id: remote address"
-async fn list_users(State(state): State<AppState>) -> impl IntoResponse {
+async fn get_users(State(state): State<AppState>) -> impl IntoResponse {
     println!("GET /users - listing all connected users");
-    // todo!();
+    match state.write_to_server.get_users().await {
+        Err(e) => return (StatusCode::SERVICE_UNAVAILABLE, e.to_string()),
+        Ok(msg) => return (StatusCode::OK, format!("Sent {:?}", msg)),
+    }
 }
 
 // DELETE /users/{id} - disconnect specific user
@@ -76,7 +79,7 @@ async fn get_admin_panel_html() -> Html<&'static str> {
 pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/", get(get_admin_panel_html))
-        .route("/users", get(list_users))
+        .route("/users", get(get_users))
         .route("/api/events", get(sse_event_sender))
         .route("/users/:id", delete(kick_user))
         .route("/users/:id", post(send_message_to_user))

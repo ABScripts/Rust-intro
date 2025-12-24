@@ -56,6 +56,13 @@ impl ClientWriterActorHandle {
             .await?)
     }
 
+    pub async fn get_users(&self) -> anyhow::Result<()> {
+        Ok(self
+            .sender
+            .send(ClientWriterActorMessage::GetUsers())
+            .await?)
+    }
+
     pub async fn send_keepalive(&mut self) -> anyhow::Result<()> {
         Ok(self
             .sender

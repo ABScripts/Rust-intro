@@ -7,8 +7,7 @@
         <h1>Admin Panel</h1>
 
         <h2>List Users</h2>
-        <button onclick="listUsers()">Get Users</button>
-        <pre id="users"></pre>
+        <button onclick="getUsers()">Get Users</button>
 
         <h2>Delete User</h2>
         <input type="number" id="deleteUserId" placeholder="User ID" />
@@ -22,19 +21,22 @@
         <pre id="messageResult"></pre>
 
         <h2>Events</h2>
-        <div id="events" style="border: 1px solid black; padding: 10px; height: 200px; overflow-y: auto; background: #f5f5f5;"></div>
+        <div
+            id="events"
+            style="
+                border: 1px solid black;
+                padding: 10px;
+                height: 200px;
+                overflow-y: auto;
+                background: #f5f5f5;
+            "
+        ></div>
 
         <script>
             const API_URL = "http://localhost:3000";
 
-            async function listUsers() {
-                const response = await fetch(`${API_URL}/users`);
-                const data = await response.json();
-                document.getElementById("users").textContent = JSON.stringify(
-                    data,
-                    null,
-                    2,
-                );
+            async function getUsers() {
+                const _ = await fetch(`${API_URL}/users`);
             }
 
             async function deleteUser() {

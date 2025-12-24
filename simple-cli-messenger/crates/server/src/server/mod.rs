@@ -6,15 +6,21 @@ use protocol::client_message::ClientMessage;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{Mutex, broadcast, mpsc},
+    sync::{Mutex, RwLock, broadcast, mpsc},
     task::{self},
 };
+
+#[derive(Default)]
+struct ServerState {
+    connected_clients: Arc<RwLock<HashMap<String, Arc<Client>>>>,
+}
 
 pub struct Server {
     listener: TcpListener,
     tx_to_message_distributor: mpsc::Sender<ClientMessage>,
     tx_to_clients: broadcast::Sender<ClientMessage>,
-    connected_clients: Arc<Mutex<HashMap<String, Arc<Client>>>>,
+
+    state: Arc<ServerState>,
 }
 
 impl Server {
@@ -32,7 +38,7 @@ impl Server {
             listener,
             tx_to_message_distributor: tx_dist,
             tx_to_clients: tx_broad,
-            connected_clients: Arc::new(Mutex::new(HashMap::new())),
+            state: Arc::new(ServerState::default()),
         })
     }
 
@@ -95,9 +101,12 @@ impl Server {
             stream,
             self.tx_to_message_distributor.clone(),
             self.tx_to_clients.subscribe(),
+            self.state.clone(),
         ));
-        self.connected_clients
-            .lock()
+
+        self.state
+            .connected_clients
+            .write()
             .await
             .insert(username, client.clone());
 
@@ -106,7 +115,7 @@ impl Server {
 
     fn run_client_worker(self: &Self, client: Arc<Client>) {
         let tx_to_message_distributor = self.tx_to_message_distributor.clone();
-        let connected_clients = self.connected_clients.clone();
+        let server_state = self.state.clone();
 
         tokio::spawn(async move {
             match client.run().await {
@@ -118,7 +127,11 @@ impl Server {
                 .send(ClientMessage::disconnected(client.username.clone()))
                 .await;
 
-            connected_clients.lock().await.remove(&client.username);
+            server_state
+                .connected_clients
+                .write()
+                .await
+                .remove(&client.username);
         });
     }
 }

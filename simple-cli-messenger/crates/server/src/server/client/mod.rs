@@ -2,6 +2,7 @@ mod reader;
 mod timeout;
 mod writer;
 
+use super::ServerState;
 use crate::server::client::reader::ClientReader;
 use crate::server::client::timeout::Timeout;
 use crate::server::client::writer::ClientWriter;
@@ -28,18 +29,23 @@ impl Client {
         sock: TcpStream,
         tx_to_message_distributor: mpsc::Sender<ClientMessage>,
         rx_from_message_distributor: broadcast::Receiver<ClientMessage>,
+        server_state: Arc<ServerState>,
     ) -> Self {
         let (rx, tx) = sock.into_split();
+        let (txx, rxx) = tokio::sync::mpsc::channel(100);
 
         let reader = Arc::new(Mutex::new(ClientReader::new(
             username.clone(),
             rx,
             tx_to_message_distributor,
+            server_state,
+            txx,
         )));
         let writer = Arc::new(Mutex::new(ClientWriter::new(
             username.clone(),
             tx,
             rx_from_message_distributor,
+            rxx,
         )));
 
         Self {
@@ -52,7 +58,7 @@ impl Client {
     pub async fn run(&self) -> anyhow::Result<()> {
         async fn handle_incoming_messages(reader: Arc<Mutex<ClientReader>>) -> anyhow::Result<()> {
             Ok(Timeout::new(
-                Duration::from_secs(6),
+                Duration::from_secs(120),
                 reader.lock().await.handle_incoming(),
             )
             .await
