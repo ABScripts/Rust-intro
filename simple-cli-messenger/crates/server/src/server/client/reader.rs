@@ -64,14 +64,16 @@ impl ClientReader {
                     // remove user object
                     // next arc clone is held inside client specific task
                     // its connection will be dropped as soon as it receives kick message
-                    self.server_state
-                        .connected_clients
-                        .write()
-                        .await
-                        .remove(&kicked_username);
-                    self.tx_to_message_distributor
-                        .send(ClientMessage::Kick(common, kicked_username))
-                        .await?
+                    if common.username != kicked_username {
+                        self.server_state
+                            .connected_clients
+                            .write()
+                            .await
+                            .remove(&kicked_username);
+                        self.tx_to_message_distributor
+                            .send(ClientMessage::Kick(common, kicked_username))
+                            .await?
+                    }
                 }
                 _ => {
                     tracing::info!("Received message from client {}: {:?}", self.username, msg);
