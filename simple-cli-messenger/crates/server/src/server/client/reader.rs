@@ -62,7 +62,7 @@ impl ClientReader {
                             .await?
                     }
                 }
-                _ => {
+                msg => {
                     tracing::info!("Received message from client {}: {:?}", self.username, msg);
                     self.tx_to_message_distributor.send(msg).await?;
                 }
