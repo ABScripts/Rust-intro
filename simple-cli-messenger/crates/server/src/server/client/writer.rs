@@ -64,14 +64,9 @@ impl ClientWriter {
             return Ok(MessageHandlingResult::ReceivedKick);
         }
 
-        let msg = msg.write(&mut self.tx_stream).await?;
-        tracing::info!(
-            "Sent message {} to client {}",
-            msg.to_json()?,
-            self.username
-        );
-
-        Ok(MessageHandlingResult::Message(msg))
+        Ok(MessageHandlingResult::Message(
+            msg.write(&mut self.tx_stream).await?,
+        ))
     }
 
     async fn handle_direct_message(
