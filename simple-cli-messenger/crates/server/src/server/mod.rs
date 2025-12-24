@@ -119,7 +119,7 @@ impl Server {
 
         tokio::spawn(async move {
             match client.run().await {
-                Err(e) => tracing::error!("{e}"),
+                Err(e) => tracing::info!("Client {} disconnected: {}", client.username, e),
                 _ => {}
             };
 

@@ -32,20 +32,7 @@ impl ClientReader {
         tracing::info!("Started getting messages");
 
         loop {
-            let msg = match ClientMessage::read(&mut self.rx_stream).await {
-                Err(e) => {
-                    self.tx_to_message_distributor
-                        .send(ClientMessage::disconnected(self.username.clone()))
-                        .await?;
-
-                    tracing::info!("Client {} disconnected: {}", self.username, e);
-
-                    break;
-                }
-                Ok(msg) => msg,
-            };
-
-            match msg {
+            match ClientMessage::read(&mut self.rx_stream).await? {
                 ClientMessage::GetUsers() => {
                     let users = self
                         .server_state
@@ -81,7 +68,5 @@ impl ClientReader {
                 }
             }
         }
-
-        Ok(())
     }
 }
