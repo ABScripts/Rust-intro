@@ -15,8 +15,6 @@ use client::client::client_admin::ClientAdmin;
 use client::client::writer::ClientWriterActorHandle;
 use protocol::client_message::ClientMessage;
 
-type UserId = u64;
-
 #[derive(Clone)]
 pub struct AppState {
     write_to_server: ClientWriterActorHandle,
@@ -39,7 +37,7 @@ async fn get_users(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 // DELETE /users/{id} - disconnect specific user
-async fn kick_user(State(state): State<AppState>, Path(user_id): Path<UserId>) {
+async fn kick_user(State(state): State<AppState>, Path(user_id): Path<String>) {
     println!("DELETE /users/{} - kicking user", user_id);
     todo!();
 }
@@ -47,14 +45,22 @@ async fn kick_user(State(state): State<AppState>, Path(user_id): Path<UserId>) {
 // POST /users/{id}?msg=text - send message to specific user
 async fn send_message_to_user(
     State(state): State<AppState>,
-    Path(user_id): Path<UserId>,
+    Path(username): Path<String>,
     Query(params): Query<SendMessageQuery>,
-) {
-    println!(
+) -> impl IntoResponse {
+    tracing::info!(
         "POST /users/{}?msg={} - sending message to user",
-        user_id, params.msg
+        username,
+        params.msg
     );
-    todo!();
+    match state
+        .write_to_server
+        .send_private_message(username, params.msg)
+        .await
+    {
+        Err(e) => return (StatusCode::SERVICE_UNAVAILABLE, e.to_string()),
+        Ok(msg) => return (StatusCode::OK, format!("Sent {:?}", msg)),
+    }
 }
 
 async fn sse_event_sender(State(state): State<AppState>) -> impl IntoResponse {

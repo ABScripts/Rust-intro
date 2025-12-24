@@ -46,7 +46,7 @@ impl ClientWriterActorHandle {
             .await?)
     }
 
-    pub async fn send_private_message(&mut self, to: String, data: String) -> anyhow::Result<()> {
+    pub async fn send_private_message(&self, to: String, data: String) -> anyhow::Result<()> {
         Ok(self
             .sender
             .send(ClientWriterActorMessage::SendData(
